@@ -8,7 +8,10 @@
   "freebsd-arm64": { "friendlyName": "freebsd-arm64-v8a" },
   "freebsd-arm7": { "friendlyName": "freebsd-arm32-v7a" },
   "linux-386": { "friendlyName": "linux-32" },
-  "linux-amd64": { "friendlyName": "linux-64" },
+  "linux-amd64": { "friendlyName": "linux-64-v1" },
+  "linux-amd64v1": { "friendlyName": "linux-64-v1" },
+  "linux-amd64v2": { "friendlyName": "linux-64-v2" },
+  "linux-amd64v3": { "friendlyName": "linux-64-v3" },
   "linux-arm5": { "friendlyName": "linux-arm32-v5" },
   "linux-arm64": { "friendlyName": "linux-arm64-v8a" },
   "linux-arm6": { "friendlyName": "linux-arm32-v6" },
@@ -28,7 +31,10 @@
   "openbsd-arm64": { "friendlyName": "openbsd-arm64-v8a" },
   "openbsd-arm7": { "friendlyName": "openbsd-arm32-v7a" },
   "windows-386": { "friendlyName": "windows-32" },
-  "windows-amd64": { "friendlyName": "windows-64" },
+  "windows-amd64": { "friendlyName": "windows-64-v1" },
+  "windows-amd64v1": { "friendlyName": "windows-64-v1" },
+  "windows-amd64v2": { "friendlyName": "windows-64-v2" },
+  "windows-amd64v3": { "friendlyName": "windows-64-v3" },
   "windows-arm64": { "friendlyName": "windows-arm64-v8a" },
   "windows-arm7": { "friendlyName": "windows-arm32-v7a" }
 }
