@@ -15,7 +15,6 @@ import (
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
-
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/log"
@@ -97,7 +96,7 @@ func (i *MultiUserInbound) AddUser(ctx context.Context, u *protocol.MemoryUser) 
 	}
 	i.users = append(i.users, &User{
 		Key:   account.Key,
-		Email: strings.ToLower(account.Email),
+		Email: account.Email,
 		Level: account.Level,
 	})
 
@@ -120,7 +119,6 @@ func (i *MultiUserInbound) RemoveUser(ctx context.Context, email string) error {
 	i.Lock()
 	defer i.Unlock()
 
-	email = strings.ToLower(email)
 	idx := -1
 	for ii, u := range i.users {
 		if strings.EqualFold(u.Email, email) {
