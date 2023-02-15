@@ -5,11 +5,13 @@ package outbound
 import (
 	"bytes"
 	"context"
+	gotls "crypto/tls"
 	"reflect"
 	"syscall"
 	"time"
 	"unsafe"
 
+	utls "github.com/refraction-networking/utls"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/net"
@@ -156,22 +158,19 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 				var p uintptr
 				if tlsConn, ok := iConn.(*tls.Conn); ok {
 					netConn = tlsConn.NetConn()
-					if sc, ok := netConn.(syscall.Conn); ok {
-						rawConn, _ = sc.SyscallConn()
-					}
 					t = reflect.TypeOf(tlsConn.Conn).Elem()
 					p = uintptr(unsafe.Pointer(tlsConn.Conn))
 				} else if utlsConn, ok := iConn.(*tls.UConn); ok {
-					netConn = utlsConn.Conn.NetConn()
-					if sc, ok := netConn.(syscall.Conn); ok {
-						rawConn, _ = sc.SyscallConn()
-					}
+					netConn = utlsConn.NetConn()
 					t = reflect.TypeOf(utlsConn.Conn).Elem()
 					p = uintptr(unsafe.Pointer(utlsConn.Conn))
 				} else if _, ok := iConn.(*xtls.Conn); ok {
 					return newError(`failed to use ` + requestAddons.Flow + `, vision "security" must be "tls"`).AtWarning()
 				} else {
 					return newError("XTLS only supports TCP, mKCP and DomainSocket for now.").AtWarning()
+				}
+				if sc, ok := netConn.(syscall.Conn); ok {
+					rawConn, _ = sc.SyscallConn()
 				}
 				i, _ := t.FieldByName("input")
 				r, _ := t.FieldByName("rawInput")
@@ -250,6 +249,13 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 				}
 			} else if err1 != buf.ErrReadTimeout {
 				return err1
+			} else if requestAddons.Flow == vless.XRV {
+				mb := make(buf.MultiBuffer, 1)
+				mb[0] = encoding.XtlsPadding(nil, 0x01, &userUUID, ctx) // it must not be tls so padding finish with it (command 1)
+				newError("Insert padding with empty content to camouflage VLESS header ", mb.Len()).WriteToLog(session.ExportIDToError(ctx))
+				if err := serverWriter.WriteMultiBuffer(mb); err != nil {
+					return err
+				}
 			}
 		} else {
 			newError("Reader is not timeout reader, will send out vless header separately from first payload").AtDebug().WriteToLog(session.ExportIDToError(ctx))
@@ -261,6 +267,15 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 
 		var err error
 		if rawConn != nil && requestAddons.Flow == vless.XRV {
+			if tlsConn, ok := iConn.(*tls.Conn); ok {
+				if tlsConn.ConnectionState().Version != gotls.VersionTLS13 {
+					return newError(`failed to use `+requestAddons.Flow+`, found outer tls version `, tlsConn.ConnectionState().Version).AtWarning()
+				}
+			} else if utlsConn, ok := iConn.(*tls.UConn); ok {
+				if utlsConn.ConnectionState().Version != utls.VersionTLS13 {
+					return newError(`failed to use `+requestAddons.Flow+`, found outer tls version `, utlsConn.ConnectionState().Version).AtWarning()
+				}
+			}
 			var counter stats.Counter
 			if statConn != nil {
 				counter = statConn.WriteCounter

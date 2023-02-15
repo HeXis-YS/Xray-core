@@ -379,6 +379,9 @@ func (c *TLSConfig) Build() (proto.Message, error) {
 	config.CipherSuites = c.CipherSuites
 	config.PreferServerCipherSuites = c.PreferServerCipherSuites
 	config.Fingerprint = strings.ToLower(c.Fingerprint)
+	if config.Fingerprint != "" && tls.GetFingerprint(config.Fingerprint) == nil {
+		return nil, newError(`unknown fingerprint: `, config.Fingerprint)
+	}
 	config.RejectUnknownSni = c.RejectUnknownSNI
 
 	if c.PinnedPeerCertificateChainSha256 != nil {
@@ -455,6 +458,7 @@ type XTLSConfig struct {
 	MaxVersion                       string            `json:"maxVersion"`
 	CipherSuites                     string            `json:"cipherSuites"`
 	PreferServerCipherSuites         bool              `json:"preferServerCipherSuites"`
+	Fingerprint                      string            `json:"fingerprint"`
 	RejectUnknownSNI                 bool              `json:"rejectUnknownSni"`
 	PinnedPeerCertificateChainSha256 *[]string         `json:"pinnedPeerCertificateChainSha256"`
 }
@@ -484,6 +488,9 @@ func (c *XTLSConfig) Build() (proto.Message, error) {
 	config.MaxVersion = c.MaxVersion
 	config.CipherSuites = c.CipherSuites
 	config.PreferServerCipherSuites = c.PreferServerCipherSuites
+	if c.Fingerprint != "" {
+		return nil, newError(`Old version of XTLS does not support fingerprint. Please use flow "xtls-rprx-vision" with "tls & tlsSettings" instead.`)
+	}
 	config.RejectUnknownSni = c.RejectUnknownSNI
 
 	if c.PinnedPeerCertificateChainSha256 != nil {
@@ -496,6 +503,8 @@ func (c *XTLSConfig) Build() (proto.Message, error) {
 			config.PinnedPeerCertificateChainSha256 = append(config.PinnedPeerCertificateChainSha256, hashValue)
 		}
 	}
+
+	newError(`You are using an old version of XTLS, which is deprecated now and will be removed soon. Please use flow "xtls-rprx-vision" with "tls & tlsSettings" instead.`).AtWarning().WriteToLog()
 
 	return config, nil
 }
@@ -534,6 +543,7 @@ type SocketConfig struct {
 	TCPKeepAliveInterval int32       `json:"tcpKeepAliveInterval"`
 	TCPKeepAliveIdle     int32       `json:"tcpKeepAliveIdle"`
 	TCPCongestion        string      `json:"tcpCongestion"`
+	Interface            string      `json:"interface"`
 }
 
 // Build implements Buildable.
@@ -583,6 +593,7 @@ func (c *SocketConfig) Build() (*internet.SocketConfig, error) {
 		TcpKeepAliveInterval: c.TCPKeepAliveInterval,
 		TcpKeepAliveIdle:     c.TCPKeepAliveIdle,
 		TcpCongestion:        c.TCPCongestion,
+		Interface:            c.Interface,
 	}, nil
 }
 
