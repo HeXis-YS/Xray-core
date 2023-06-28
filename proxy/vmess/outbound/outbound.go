@@ -128,21 +128,27 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	input := link.Reader
 	output := link.Writer
 
-	isAEAD := false
-	if !aeadDisabled && len(account.AlterIDs) == 0 {
-		isAEAD = true
-	}
-
 	hashkdf := hmac.New(sha256.New, []byte("VMessBF"))
 	hashkdf.Write(account.ID.Bytes())
 
 	behaviorSeed := crc64.Checksum(hashkdf.Sum(nil), crc64.MakeTable(crc64.ISO))
 
-	session := encoding.NewClientSession(ctx, isAEAD, protocol.DefaultIDHash, int64(behaviorSeed))
+	var newCtx context.Context
+	var newCancel context.CancelFunc
+	if session.TimeoutOnlyFromContext(ctx) {
+		newCtx, newCancel = context.WithCancel(context.Background())
+	}
+
+	session := encoding.NewClientSession(ctx, int64(behaviorSeed))
 	sessionPolicy := h.policyManager.ForLevel(request.User.Level)
 
 	ctx, cancel := context.WithCancel(ctx)
-	timer := signal.CancelAfterInactivity(ctx, cancel, sessionPolicy.Timeouts.ConnectionIdle)
+	timer := signal.CancelAfterInactivity(ctx, func() {
+		cancel()
+		if newCancel != nil {
+			newCancel()
+		}
+	}, sessionPolicy.Timeouts.ConnectionIdle)
 
 	if request.Command == protocol.RequestCommandUDP && h.cone && request.Port != 53 && request.Port != 443 {
 		request.Command = protocol.RequestCommandMux
@@ -164,7 +170,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 		}
 		bodyWriter2 := bodyWriter
 		if request.Command == protocol.RequestCommandMux && request.Port == 666 {
-			bodyWriter = xudp.NewPacketWriter(bodyWriter, target)
+			bodyWriter = xudp.NewPacketWriter(bodyWriter, target, xudp.GetGlobalID(ctx))
 		}
 		if err := buf.CopyOnceTimeout(input, bodyWriter, time.Millisecond*100); err != nil && err != buf.ErrNotTimeoutReader && err != buf.ErrReadTimeout {
 			return newError("failed to write first payload").Base(err)
@@ -208,6 +214,10 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 		return buf.Copy(bodyReader, output, buf.UpdateActivity(timer))
 	}
 
+	if newCtx != nil {
+		ctx = newCtx
+	}
+
 	responseDonePost := task.OnSuccess(responseDone, task.Close(output))
 	if err := task.Run(ctx, requestDone, responseDonePost); err != nil {
 		return newError("connection ends").Base(err)
@@ -218,7 +228,6 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 
 var (
 	enablePadding = false
-	aeadDisabled  = false
 )
 
 func shouldEnablePadding(s protocol.SecurityType) bool {
@@ -235,10 +244,5 @@ func init() {
 	paddingValue := platform.NewEnvFlag("xray.vmess.padding").GetValue(func() string { return defaultFlagValue })
 	if paddingValue != defaultFlagValue {
 		enablePadding = true
-	}
-
-	isAeadDisabled := platform.NewEnvFlag("xray.vmess.aead.disabled").GetValue(func() string { return defaultFlagValue })
-	if isAeadDisabled == "true" {
-		aeadDisabled = true
 	}
 }
