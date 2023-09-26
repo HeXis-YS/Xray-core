@@ -123,13 +123,13 @@
 ### Windows
 
 ```bash
-go build -o xray.exe -trimpath -ldflags "-s -w -buildid=" ./main
+go build -o xray.exe -trimpath -ldflags "-X 'github.com/xtls/xray-core/core.build=$(git rev-parse HEAD)' -s -w -buildid=" ./main
 ```
 
 ### Linux / macOS
 
 ```bash
-go build -o xray -trimpath -ldflags "-s -w -buildid=" ./main
+go build -o xray -trimpath -ldflags "-X 'github.com/xtls/xray-core/core.build=$(git rev-parse HEAD)' -s -w -buildid=" ./main
 ```
 
 ## Stargazers over time
