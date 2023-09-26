@@ -146,10 +146,13 @@ func (r *ReadVReader) ReadMultiBuffer() (MultiBuffer, error) {
 var useReadv bool
 
 func init() {
-	const defaultFlagValue = "NOT_DEFINED_AT_ALL"
-	value := platform.NewEnvFlag("xray.buf.readv").GetValue(func() string { return defaultFlagValue })
+	value := platform.NewEnvFlag("xray_buf_readv").GetValue(func() string { return "auto" })
 	switch value {
-	case defaultFlagValue, "auto", "enable":
+	case "auto", "enable":
+		newError("xray_buf_readv enabled").AtDebug().WriteToLog()
 		useReadv = true
+	case "disable":
+		newError("xray_buf_readv disabled").AtDebug().WriteToLog()
+		useReadv = false
 	}
 }
