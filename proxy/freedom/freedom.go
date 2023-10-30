@@ -40,14 +40,11 @@ func init() {
 		}
 		return h, nil
 	}))
-	value := platform.NewEnvFlag("xray_buf_splice").GetValue(func() string { return "auto" })
+	const defaultFlagValue = "NOT_DEFINED_AT_ALL"
+	value := platform.NewEnvFlag("xray.buf.splice").GetValue(func() string { return defaultFlagValue })
 	switch value {
 	case "auto", "enable":
-		newError("xray_buf_splice enabled").AtDebug().WriteToLog()
 		useSplice = true
-	case "disable":
-		newError("xray_buf_splice disabled").AtDebug().WriteToLog()
-		useSplice = false
 	}
 }
 
