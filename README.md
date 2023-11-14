@@ -126,13 +126,13 @@
 ### Windows
 
 ```bash
-go build -o xray.exe -trimpath -ldflags "-X 'github.com/xtls/xray-core/core.build=$(git rev-parse HEAD)' -s -w -buildid=" ./main
+CGO_ENABLED=0 GOAMD64=v3 GOOS=windows go build -o xray_windows_amd64_v3.exe -trimpath -gcflags=all="-B" -ldflags=all="-X github.com/xtls/xray-core/core.build=$(git rev-parse HEAD) -s -w -stripfn 2 -buildid=" ./main
 ```
 
 ### Linux / macOS
 
 ```bash
-go build -o xray -trimpath -ldflags "-X 'github.com/xtls/xray-core/core.build=$(git rev-parse HEAD)' -s -w -buildid=" ./main
+CGO_ENABLED=0 GOAMD64=v3 GOOS=linux go build -o xray_linux_amd64_v3 -trimpath -gcflags=all="-B" -ldflags=all="-X github.com/xtls/xray-core/core.build=$(git rev-parse HEAD) -s -w -stripfn 2 -buildid=" ./main
 ```
 
 ## Stargazers over time
