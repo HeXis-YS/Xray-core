@@ -23,10 +23,11 @@
 - Linux Script
   - [XTLS/Xray-install](https://github.com/XTLS/Xray-install)
 - Docker
+  - Official: [ghcr.io/xtls/xray-core](https://ghcr.io/xtls/xray-core) 
   - [iamybj/docker-xray](https://hub.docker.com/r/iamybj/docker-xray)
   - [teddysun/xray](https://hub.docker.com/r/teddysun/xray)
 - Web Panel
-  - [X-UI](https://github.com/FranzKafkaYu/x-ui), [X-UI-English](https://github.com/NidukaAkalanka/x-ui-english), [3X-UI](https://github.com/MHSanaei/3x-ui), [X-UI](https://github.com/alireza0/x-ui), [X-UI](https://github.com/diditra/x-ui)
+  - [X-UI-English](https://github.com/NidukaAkalanka/x-ui-english), [3X-UI](https://github.com/MHSanaei/3x-ui), [X-UI](https://github.com/alireza0/x-ui), [X-UI](https://github.com/diditra/x-ui)
   - [Xray-UI](https://github.com/qist/xray-ui), [X-UI](https://github.com/sing-web/x-ui)
   - [Hiddify](https://github.com/hiddify/hiddify-config)
   - [Marzban](https://github.com/Gozargah/Marzban)
@@ -56,6 +57,7 @@
   - [REALITY (English)](https://cscot.pages.dev/2023/03/02/Xray-REALITY-tutorial/)
   - [XTLS-Iran-Reality (English)](https://github.com/SasukeFreestyle/XTLS-Iran-Reality)
   - [Xray REALITY with 'steal oneself' (English)](https://computerscot.github.io/vless-xtls-utls-reality-steal-oneself.html)
+  - [Xray with WireGuard inbound (English)](https://g800.pages.dev/wireguard)
 
 ## GUI Clients
 
@@ -123,16 +125,8 @@
 
 ## Compilation
 
-### Windows
-
 ```bash
-CGO_ENABLED=0 GOAMD64=v3 GOOS=windows go build -o xray_windows_amd64_v3.exe -trimpath -gcflags=all="-B" -ldflags=all="-X github.com/xtls/xray-core/core.build=$(git rev-parse HEAD) -s -w -stripfn 2 -buildid=" ./main
-```
-
-### Linux / macOS
-
-```bash
-CGO_ENABLED=0 GOAMD64=v3 GOOS=linux go build -o xray_linux_amd64_v3 -trimpath -gcflags=all="-B" -ldflags=all="-X github.com/xtls/xray-core/core.build=$(git rev-parse HEAD) -s -w -stripfn 2 -buildid=" ./main
+make
 ```
 
 ## Stargazers over time
