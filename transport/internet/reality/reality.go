@@ -46,8 +46,8 @@ type Conn struct {
 	*reality.Conn
 }
 
-func (c *Conn) HandshakeAddress() net.Address {
-	if err := c.Handshake(); err != nil {
+func (c *Conn) HandshakeAddressContext(ctx context.Context) net.Address {
+	if err := c.HandshakeContext(ctx); err != nil {
 		return nil
 	}
 	state := c.ConnectionState()
@@ -64,13 +64,24 @@ func Server(c net.Conn, config *reality.Config) (net.Conn, error) {
 
 type UConn struct {
 	*utls.UConn
-	ServerName string
-	AuthKey    []byte
-	Verified   bool
+	closeTimeout time.Duration
+	ServerName   string
+	AuthKey      []byte
+	Verified     bool
 }
 
-func (c *UConn) HandshakeAddress() net.Address {
-	if err := c.Handshake(); err != nil {
+func (c *UConn) Close() error {
+	if c.closeTimeout != 0 {
+		timer := time.AfterFunc(c.closeTimeout, func() {
+			c.UConn.NetConn().Close()
+		})
+		defer timer.Stop()
+	}
+	return c.UConn.Close()
+}
+
+func (c *UConn) HandshakeAddressContext(ctx context.Context) net.Address {
+	if err := c.HandshakeContext(ctx); err != nil {
 		return nil
 	}
 	state := c.ConnectionState()
@@ -106,7 +117,7 @@ func (c *UConn) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x50
 
 func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
 	localAddr := c.LocalAddr().String()
-	uConn := &UConn{}
+	uConn := &UConn{closeTimeout: time.Duration(float32(time.Second) * config.CloseTimeout)}
 	utlsConfig := &utls.Config{
 		VerifyPeerCertificate:  uConn.VerifyPeerCertificate,
 		ServerName:             config.ServerName,

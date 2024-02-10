@@ -1,9 +1,11 @@
 package tls
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"math/big"
+	"time"
 
 	utls "github.com/refraction-networking/utls"
 	"github.com/xtls/xray-core/common/buf"
@@ -14,7 +16,7 @@ import (
 
 type Interface interface {
 	net.Conn
-	Handshake() error
+	HandshakeContext(ctx context.Context) error
 	VerifyHostname(host string) error
 	NegotiatedProtocol() (name string, mutual bool)
 }
@@ -23,6 +25,17 @@ var _ buf.Writer = (*Conn)(nil)
 
 type Conn struct {
 	*tls.Conn
+	closeTimeout time.Duration
+}
+
+func (c *Conn) Close() error {
+	if c.closeTimeout != 0 {
+		timer := time.AfterFunc(c.closeTimeout, func() {
+			c.Conn.NetConn().Close()
+		})
+		defer timer.Stop()
+	}
+	return c.Conn.Close()
 }
 
 func (c *Conn) WriteMultiBuffer(mb buf.MultiBuffer) error {
@@ -32,8 +45,8 @@ func (c *Conn) WriteMultiBuffer(mb buf.MultiBuffer) error {
 	return err
 }
 
-func (c *Conn) HandshakeAddress() net.Address {
-	if err := c.Handshake(); err != nil {
+func (c *Conn) HandshakeAddressContext(ctx context.Context) net.Address {
+	if err := c.HandshakeContext(ctx); err != nil {
 		return nil
 	}
 	state := c.ConnectionState()
@@ -49,9 +62,9 @@ func (c *Conn) NegotiatedProtocol() (name string, mutual bool) {
 }
 
 // Client initiates a TLS client handshake on the given connection.
-func Client(c net.Conn, config *tls.Config) net.Conn {
+func Client(c net.Conn, config *tls.Config, closeTimeout float32) net.Conn {
 	tlsConn := tls.Client(c, config)
-	return &Conn{Conn: tlsConn}
+	return &Conn{Conn: tlsConn, closeTimeout: time.Duration(float32(time.Second) * closeTimeout)}
 }
 
 // Server initiates a TLS server handshake on the given connection.
@@ -62,10 +75,21 @@ func Server(c net.Conn, config *tls.Config) net.Conn {
 
 type UConn struct {
 	*utls.UConn
+	closeTimeout time.Duration
 }
 
-func (c *UConn) HandshakeAddress() net.Address {
-	if err := c.Handshake(); err != nil {
+func (c *UConn) Close() error {
+	if c.closeTimeout != 0 {
+		timer := time.AfterFunc(c.closeTimeout, func() {
+			c.Conn.NetConn().Close()
+		})
+		defer timer.Stop()
+	}
+	return c.Conn.Close()
+}
+
+func (c *UConn) HandshakeAddressContext(ctx context.Context) net.Address {
+	if err := c.HandshakeContext(ctx); err != nil {
 		return nil
 	}
 	state := c.ConnectionState()
@@ -77,7 +101,7 @@ func (c *UConn) HandshakeAddress() net.Address {
 
 // WebsocketHandshake basically calls UConn.Handshake inside it but it will only send
 // http/1.1 in its ALPN.
-func (c *UConn) WebsocketHandshake() error {
+func (c *UConn) WebsocketHandshakeContext(ctx context.Context) error {
 	// Build the handshake state. This will apply every variable of the TLS of the
 	// fingerprint in the UConn
 	if err := c.BuildHandshakeState(); err != nil {
@@ -99,7 +123,7 @@ func (c *UConn) WebsocketHandshake() error {
 	if err := c.BuildHandshakeState(); err != nil {
 		return err
 	}
-	return c.Handshake()
+	return c.HandshakeContext(ctx)
 }
 
 func (c *UConn) NegotiatedProtocol() (name string, mutual bool) {
@@ -107,9 +131,9 @@ func (c *UConn) NegotiatedProtocol() (name string, mutual bool) {
 	return state.NegotiatedProtocol, state.NegotiatedProtocolIsMutual
 }
 
-func UClient(c net.Conn, config *tls.Config, fingerprint *utls.ClientHelloID) net.Conn {
+func UClient(c net.Conn, config *tls.Config, fingerprint *utls.ClientHelloID, closeTimeout float32) net.Conn {
 	utlsConn := utls.UClient(c, copyConfig(config), *fingerprint)
-	return &UConn{UConn: utlsConn}
+	return &UConn{UConn: utlsConn, closeTimeout: time.Duration(float32(time.Second) * closeTimeout)}
 }
 
 func copyConfig(c *tls.Config) *utls.Config {
@@ -118,7 +142,7 @@ func copyConfig(c *tls.Config) *utls.Config {
 		ServerName:            c.ServerName,
 		InsecureSkipVerify:    c.InsecureSkipVerify,
 		VerifyPeerCertificate: c.VerifyPeerCertificate,
-		KeyLogWriter:	       c.KeyLogWriter,
+		KeyLogWriter:          c.KeyLogWriter,
 	}
 }
 
