@@ -39,9 +39,8 @@ func (t grpcUtlsInfo) GetSecurityValue() credentials.ChannelzSecurityValue {
 
 // grpcUtls is the credentials required for authenticating a connection using TLS.
 type grpcUtls struct {
-	config       *gotls.Config
-	fingerprint  *utls.ClientHelloID
-	closeTimeout float32
+	config      *gotls.Config
+	fingerprint *utls.ClientHelloID
 }
 
 func (c grpcUtls) Info() credentials.ProtocolInfo {
@@ -63,7 +62,7 @@ func (c *grpcUtls) ClientHandshake(ctx context.Context, authority string, rawCon
 		}
 		cfg.ServerName = serverName
 	}
-	conn := UClient(rawConn, cfg, c.fingerprint, c.closeTimeout).(*UConn)
+	conn := UClient(rawConn, cfg, c.fingerprint).(*UConn)
 	errChannel := make(chan error, 1)
 	go func() {
 		errChannel <- conn.HandshakeContext(ctx)
@@ -94,7 +93,7 @@ func (c *grpcUtls) ServerHandshake(net.Conn) (net.Conn, credentials.AuthInfo, er
 }
 
 func (c *grpcUtls) Clone() credentials.TransportCredentials {
-	return NewGrpcUtls(c.config, c.fingerprint, c.closeTimeout)
+	return NewGrpcUtls(c.config, c.fingerprint)
 }
 
 func (c *grpcUtls) OverrideServerName(serverNameOverride string) error {
@@ -103,7 +102,7 @@ func (c *grpcUtls) OverrideServerName(serverNameOverride string) error {
 }
 
 // NewGrpcUtls uses c to construct a TransportCredentials based on uTLS.
-func NewGrpcUtls(c *gotls.Config, fingerprint *utls.ClientHelloID, closeTimeout float32) credentials.TransportCredentials {
-	tc := &grpcUtls{c.Clone(), fingerprint, closeTimeout}
+func NewGrpcUtls(c *gotls.Config, fingerprint *utls.ClientHelloID) credentials.TransportCredentials {
+	tc := &grpcUtls{c.Clone(), fingerprint}
 	return tc
 }

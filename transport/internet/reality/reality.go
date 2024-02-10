@@ -64,19 +64,18 @@ func Server(c net.Conn, config *reality.Config) (net.Conn, error) {
 
 type UConn struct {
 	*utls.UConn
-	closeTimeout time.Duration
-	ServerName   string
-	AuthKey      []byte
-	Verified     bool
+	ServerName string
+	AuthKey    []byte
+	Verified   bool
 }
 
+const realityCloseTimeout = 250 * time.Millisecond
+
 func (c *UConn) Close() error {
-	if c.closeTimeout != 0 {
-		timer := time.AfterFunc(c.closeTimeout, func() {
-			c.UConn.NetConn().Close()
-		})
-		defer timer.Stop()
-	}
+	timer := time.AfterFunc(realityCloseTimeout, func() {
+		c.UConn.NetConn().Close()
+	})
+	defer timer.Stop()
 	return c.UConn.Close()
 }
 
@@ -117,7 +116,7 @@ func (c *UConn) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x50
 
 func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
 	localAddr := c.LocalAddr().String()
-	uConn := &UConn{closeTimeout: time.Duration(float32(time.Second) * config.CloseTimeout)}
+	uConn := &UConn{}
 	utlsConfig := &utls.Config{
 		VerifyPeerCertificate:  uConn.VerifyPeerCertificate,
 		ServerName:             config.ServerName,
