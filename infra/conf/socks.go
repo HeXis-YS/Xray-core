@@ -31,6 +31,8 @@ type SocksServerConfig struct {
 	AuthMethod string          `json:"auth"`
 	Accounts   []*SocksAccount `json:"accounts"`
 	UDP        bool            `json:"udp"`
+	// UoT uses -1 to disable; non-negative values enable UoT and set the version.
+	UoT        *int            `json:"uot"`
 	Host       *Address        `json:"ip"`
 	UserLevel  uint32          `json:"userLevel"`
 }
@@ -55,6 +57,15 @@ func (v *SocksServerConfig) Build() (proto.Message, error) {
 	}
 
 	config.UdpEnabled = v.UDP
+	if v.UoT != nil {
+		if *v.UoT < -1 {
+			return nil, errors.New("invalid uot value: ", *v.UoT, ". Use -1 to disable, or non-negative version to enable.")
+		}
+		if *v.UoT != -1 {
+			config.UdpOverTcp = true
+			config.UdpOverTcpVersion = uint32(*v.UoT)
+		}
+	}
 	if v.Host != nil {
 		config.Address = v.Host.Build()
 	}

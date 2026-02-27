@@ -103,13 +103,18 @@ func (c *Client) Process(ctx context.Context, link *transport.Link, dialer inter
 	if err := conn.SetDeadline(time.Now().Add(p.Timeouts.Handshake)); err != nil {
 		errors.LogInfoInner(ctx, err, "failed to set deadline for handshake")
 	}
-	udpRequest, err := ClientHandshake(request, conn, conn)
+	udpRequest, udpRequestInTCP, err := ClientHandshake(request, conn, conn)
 	if err != nil {
 		return errors.New("failed to establish connection to server").AtWarning().Base(err)
 	}
 	if udpRequest != nil {
 		if udpRequest.Address == net.AnyIP || udpRequest.Address == net.AnyIPv6 {
 			udpRequest.Address = dest.Address
+		}
+		if udpRequestInTCP != nil {
+			request.Command = protocol.RequestCommandTCP
+			request.Address = udpRequest.Address
+			request.Port = udpRequest.Port
 		}
 	}
 
@@ -136,12 +141,20 @@ func (c *Client) Process(ctx context.Context, link *transport.Link, dialer inter
 	if request.Command == protocol.RequestCommandTCP {
 		requestFunc = func() error {
 			defer timer.SetTimeout(p.Timeouts.DownlinkOnly)
-			return buf.Copy(link.Reader, buf.NewWriter(conn), buf.UpdateActivity(timer))
+			var writer buf.Writer = buf.NewWriter(conn)
+			if udpRequestInTCP != nil {
+				writer = NewUDPWriter(conn, request, udpRequestInTCP)
+			}
+			return buf.Copy(link.Reader, writer, buf.UpdateActivity(timer))
 		}
 		responseFunc = func() error {
 			ob.CanSpliceCopy = 1
 			defer timer.SetTimeout(p.Timeouts.UplinkOnly)
-			return buf.Copy(buf.NewReader(conn), link.Writer, buf.UpdateActivity(timer))
+			var reader buf.Reader = buf.NewReader(conn)
+			if udpRequestInTCP != nil {
+				reader = NewUDPReader(conn, request, udpRequestInTCP)
+			}
+			return buf.Copy(reader, link.Writer, buf.UpdateActivity(timer))
 		}
 	} else if request.Command == protocol.RequestCommandUDP {
 		udpConn, err := dialer.Dial(ctx, udpRequest.Destination())
@@ -151,13 +164,13 @@ func (c *Client) Process(ctx context.Context, link *transport.Link, dialer inter
 		defer udpConn.Close()
 		requestFunc = func() error {
 			defer timer.SetTimeout(p.Timeouts.DownlinkOnly)
-			writer := &UDPWriter{Writer: udpConn, Request: request}
+			writer := NewUDPWriter(udpConn, request, nil)
 			return buf.Copy(link.Reader, writer, buf.UpdateActivity(timer))
 		}
 		responseFunc = func() error {
 			ob.CanSpliceCopy = 1
 			defer timer.SetTimeout(p.Timeouts.UplinkOnly)
-			reader := &UDPReader{Reader: udpConn}
+			reader := NewUDPReader(udpConn, request, nil)
 			return buf.Copy(reader, link.Writer, buf.UpdateActivity(timer))
 		}
 	}

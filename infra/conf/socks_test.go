@@ -35,7 +35,71 @@ func TestSocksInboundConfig(t *testing.T) {
 				Accounts: map[string]string{
 					"my-username": "my-password",
 				},
-				UdpEnabled: false,
+				UdpEnabled:       false,
+				UdpOverTcp:       false,
+				UdpOverTcpVersion: 0,
+				Address: &net.IPOrDomain{
+					Address: &net.IPOrDomain_Ip{
+						Ip: []byte{127, 0, 0, 1},
+					},
+				},
+				UserLevel: 1,
+			},
+		},
+		{
+			Input: `{
+				"auth": "password",
+				"accounts": [
+					{
+						"user": "my-username",
+						"pass": "my-password"
+					}
+				],
+				"udp": false,
+				"uot": 2,
+				"ip": "127.0.0.1",
+				"userLevel": 1
+			}`,
+			Parser: loadJSON(creator),
+			Output: &socks.ServerConfig{
+				AuthType: socks.AuthType_PASSWORD,
+				Accounts: map[string]string{
+					"my-username": "my-password",
+				},
+				UdpEnabled:       false,
+				UdpOverTcp:       true,
+				UdpOverTcpVersion: 2,
+				Address: &net.IPOrDomain{
+					Address: &net.IPOrDomain_Ip{
+						Ip: []byte{127, 0, 0, 1},
+					},
+				},
+				UserLevel: 1,
+			},
+		},
+		{
+			Input: `{
+				"auth": "password",
+				"accounts": [
+					{
+						"user": "my-username",
+						"pass": "my-password"
+					}
+				],
+				"udp": false,
+				"uot": -1,
+				"ip": "127.0.0.1",
+				"userLevel": 1
+			}`,
+			Parser: loadJSON(creator),
+			Output: &socks.ServerConfig{
+				AuthType: socks.AuthType_PASSWORD,
+				Accounts: map[string]string{
+					"my-username": "my-password",
+				},
+				UdpEnabled:        false,
+				UdpOverTcp:        false,
+				UdpOverTcpVersion: 0,
 				Address: &net.IPOrDomain{
 					Address: &net.IPOrDomain_Ip{
 						Ip: []byte{127, 0, 0, 1},
@@ -45,6 +109,30 @@ func TestSocksInboundConfig(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestSocksInboundConfigUoTInvalid(t *testing.T) {
+	creator := func() Buildable {
+		return new(SocksServerConfig)
+	}
+
+	parser := loadJSON(creator)
+	_, err := parser(`{
+		"auth": "password",
+		"accounts": [
+			{
+				"user": "my-username",
+				"pass": "my-password"
+			}
+		],
+		"udp": false,
+		"uot": -2,
+		"ip": "127.0.0.1",
+		"userLevel": 1
+	}`)
+	if err == nil {
+		t.Fatal("expected error for invalid uot value, got nil")
+	}
 }
 
 func TestSocksOutboundConfig(t *testing.T) {

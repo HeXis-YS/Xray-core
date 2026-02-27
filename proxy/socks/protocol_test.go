@@ -35,6 +35,54 @@ func TestUDPEncoding(t *testing.T) {
 	}
 }
 
+func TestUDPInTCPEncoding(t *testing.T) {
+	b := buf.New()
+
+	request := &protocol.RequestHeader{
+		Address: net.IPAddress([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6}),
+		Port:    1024,
+	}
+	requestInTCP := &Socks5UDPRequest{PacketLength: 2}
+	writer := NewUDPWriter(b, request, requestInTCP)
+
+	content := []byte{'a'}
+	payload := buf.New()
+	payload.Write(content)
+	common.Must(writer.WriteMultiBuffer(buf.MultiBuffer{payload}))
+
+	reader := NewUDPReader(b, request, requestInTCP)
+
+	decodedPayload, err := reader.ReadMultiBuffer()
+	common.Must(err)
+	if r := cmp.Diff(decodedPayload[0].Bytes(), content); r != "" {
+		t.Error(r)
+	}
+}
+
+func TestUDPInTCPLegacyEncoding(t *testing.T) {
+	b := buf.New()
+
+	request := &protocol.RequestHeader{
+		Address: net.IPAddress([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6}),
+		Port:    1024,
+	}
+	requestInTCP := &Socks5UDPRequest{PacketLength: 4}
+	writer := NewUDPWriter(b, request, requestInTCP)
+
+	content := []byte{'a'}
+	payload := buf.New()
+	payload.Write(content)
+	common.Must(writer.WriteMultiBuffer(buf.MultiBuffer{payload}))
+
+	reader := NewUDPReader(b, request, requestInTCP)
+
+	decodedPayload, err := reader.ReadMultiBuffer()
+	common.Must(err)
+	if r := cmp.Diff(decodedPayload[0].Bytes(), content); r != "" {
+		t.Error(r)
+	}
+}
+
 func TestReadUsernamePassword(t *testing.T) {
 	testCases := []struct {
 		Input    []byte

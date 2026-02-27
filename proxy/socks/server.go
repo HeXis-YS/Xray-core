@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/sagernet/sing/common/uot"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
@@ -126,7 +127,7 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 		Reader: buf.NewReader(conn),
 		Buffer: buf.MultiBuffer{buf.FromBytes(firstbyte)},
 	}
-	request, err := svrSession.Handshake(reader, conn)
+	request, requestInTCP, err := svrSession.Handshake(reader, conn)
 	if err != nil {
 		if inbound.Source.IsValid() {
 			log.Record(&log.AccessMessage{
@@ -140,6 +141,21 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 	}
 	if request.User != nil {
 		inbound.User.Email = request.User.Email
+	}
+	if request.Address.Family().IsDomain() {
+		if request.Address.Domain() == uot.MagicAddress && request.Port == 10086 {
+			request.Address = net.AnyIP
+			request.Port = 0
+			if requestInTCP != nil {
+				requestInTCP.PacketLength = 2
+			}
+		} else if request.Address.Domain() == uot.LegacyMagicAddress && request.Port == 10086 {
+			request.Address = net.AnyIP
+			request.Port = 0
+			if requestInTCP != nil {
+				requestInTCP.PacketLength = 4
+			}
+		}
 	}
 
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
@@ -170,6 +186,9 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 	}
 
 	if request.Command == protocol.RequestCommandUDP {
+		if requestInTCP != nil {
+			return s.handleUDPOverTCP(ctx, reader, conn, request, requestInTCP, dispatcher)
+		}
 		if s.udpFilter != nil {
 			s.udpFilter.Add(conn.RemoteAddr())
 		}
@@ -183,6 +202,81 @@ func (*Server) handleUDP(c io.Reader) error {
 	// The TCP connection closes after this method returns. We need to wait until
 	// the client closes it.
 	return common.Error2(io.Copy(buf.DiscardBytes, c))
+}
+
+func (*Server) handleUDPOverTCP(ctx context.Context, reader *buf.BufferedReader, conn stat.Connection, request *protocol.RequestHeader, requestInTCP *Socks5UDPRequest, dispatcher routing.Dispatcher) error {
+	udpServer := udp.NewDispatcher(dispatcher, func(ctx context.Context, packet *udp_proto.Packet) {
+		payload := packet.Payload
+		defer payload.Release()
+		errors.LogDebug(ctx, "writing back UDP response with ", payload.Len(), " bytes")
+
+		request := protocol.RequestHeaderFromContext(ctx)
+		if request == nil {
+			return
+		}
+		if payload.UDP != nil {
+			request = &protocol.RequestHeader{
+				User:    request.User,
+				Address: payload.UDP.Address,
+				Port:    payload.UDP.Port,
+			}
+		}
+		udpMessage, err := EncodeUDPPacket(request, payload.Bytes())
+		if err != nil {
+			errors.LogWarningInner(ctx, err, "failed to write UDP response")
+			return
+		}
+		defer udpMessage.Release()
+
+		udpResponse := buf.New()
+		if requestInTCP.PacketLength == 4 {
+			udpResponse.Write([]byte{0, 0, 0, 0})
+		} else {
+			udpResponse.Write([]byte{0, 0})
+		}
+		udpResponse.Write(udpMessage.Bytes())
+		if requestInTCP.PacketLength == 4 {
+			udpResponse.SetByte(0, byte(udpMessage.Len()>>24))
+			udpResponse.SetByte(1, byte(udpMessage.Len()>>16))
+			udpResponse.SetByte(2, byte(udpMessage.Len()>>8))
+			udpResponse.SetByte(3, byte(udpMessage.Len()))
+		} else {
+			udpResponse.SetByte(0, byte(udpMessage.Len()>>8))
+			udpResponse.SetByte(1, byte(udpMessage.Len()))
+		}
+		if _, err := conn.Write(udpResponse.Bytes()); err != nil {
+			errors.LogWarningInner(ctx, err, "failed to write UDP response")
+		}
+		udpResponse.Release()
+	})
+	defer udpServer.RemoveRay()
+	udpReader := NewUDPReader(reader, request, requestInTCP)
+	for {
+		mb, err := udpReader.ReadMultiBuffer()
+		if err != nil {
+			if errors.Cause(err) == io.EOF {
+				return nil
+			}
+			return err
+		}
+		for _, payload := range mb {
+			if payload.IsEmpty() || payload.UDP == nil {
+				payload.Release()
+				continue
+			}
+
+			currentRequest := &protocol.RequestHeader{
+				Version: socks5Version,
+				Command: protocol.RequestCommandUDP,
+				Address: payload.UDP.Address,
+				Port:    payload.UDP.Port,
+			}
+			destination := currentRequest.Destination()
+			currentPacketCtx := protocol.ContextWithRequestHeader(ctx, currentRequest)
+			errors.LogDebug(ctx, "send packet to ", destination, " with ", payload.Len(), " bytes")
+			udpServer.Dispatch(currentPacketCtx, destination, payload)
+		}
+	}
 }
 
 func (s *Server) handleUDPPayload(ctx context.Context, conn stat.Connection, dispatcher routing.Dispatcher) error {
