@@ -35,8 +35,8 @@ func TestSocksInboundConfig(t *testing.T) {
 				Accounts: map[string]string{
 					"my-username": "my-password",
 				},
-				UdpEnabled:       false,
-				UdpOverTcp:       false,
+				UdpEnabled:        false,
+				UdpOverTcp:        false,
 				UdpOverTcpVersion: 0,
 				Address: &net.IPOrDomain{
 					Address: &net.IPOrDomain_Ip{
@@ -66,8 +66,8 @@ func TestSocksInboundConfig(t *testing.T) {
 				Accounts: map[string]string{
 					"my-username": "my-password",
 				},
-				UdpEnabled:       false,
-				UdpOverTcp:       true,
+				UdpEnabled:        false,
+				UdpOverTcp:        true,
 				UdpOverTcpVersion: 2,
 				Address: &net.IPOrDomain{
 					Address: &net.IPOrDomain_Ip{

@@ -127,16 +127,16 @@ func (x *Account) GetPassword() string {
 
 // ServerConfig is the protobuf config for Socks server.
 type ServerConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AuthType      AuthType               `protobuf:"varint,1,opt,name=auth_type,json=authType,proto3,enum=xray.proxy.socks.AuthType" json:"auth_type,omitempty"`
-	Accounts      map[string]string      `protobuf:"bytes,2,rep,name=accounts,proto3" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Address       *net.IPOrDomain        `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
-	UdpEnabled    bool                   `protobuf:"varint,4,opt,name=udp_enabled,json=udpEnabled,proto3" json:"udp_enabled,omitempty"`
-	UserLevel     uint32                 `protobuf:"varint,6,opt,name=user_level,json=userLevel,proto3" json:"user_level,omitempty"`
-	UdpOverTcp    bool                   `protobuf:"varint,7,opt,name=udp_over_tcp,json=udpOverTcp,proto3" json:"udp_over_tcp,omitempty"`
-	UdpOverTcpVersion uint32             `protobuf:"varint,8,opt,name=udp_over_tcp_version,json=udpOverTcpVersion,proto3" json:"udp_over_tcp_version,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AuthType          AuthType               `protobuf:"varint,1,opt,name=auth_type,json=authType,proto3,enum=xray.proxy.socks.AuthType" json:"auth_type,omitempty"`
+	Accounts          map[string]string      `protobuf:"bytes,2,rep,name=accounts,proto3" json:"accounts,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Address           *net.IPOrDomain        `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	UdpEnabled        bool                   `protobuf:"varint,4,opt,name=udp_enabled,json=udpEnabled,proto3" json:"udp_enabled,omitempty"`
+	UserLevel         uint32                 `protobuf:"varint,6,opt,name=user_level,json=userLevel,proto3" json:"user_level,omitempty"`
+	UdpOverTcp        bool                   `protobuf:"varint,7,opt,name=udp_over_tcp,json=udpOverTcp,proto3" json:"udp_over_tcp,omitempty"`
+	UdpOverTcpVersion uint32                 `protobuf:"varint,8,opt,name=udp_over_tcp_version,json=udpOverTcpVersion,proto3" json:"udp_over_tcp_version,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ServerConfig) Reset() {
@@ -271,7 +271,7 @@ const file_proxy_socks_config_proto_rawDesc = "" +
 	"\x18proxy/socks/config.proto\x12\x10xray.proxy.socks\x1a\x18common/net/address.proto\x1a!common/protocol/server_spec.proto\"A\n" +
 	"\aAccount\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x82\x03\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x98\x03\n" +
 	"\fServerConfig\x127\n" +
 	"\tauth_type\x18\x01 \x01(\x0e2\x1a.xray.proxy.socks.AuthTypeR\bauthType\x12H\n" +
 	"\baccounts\x18\x02 \x03(\v2,.xray.proxy.socks.ServerConfig.AccountsEntryR\baccounts\x125\n" +
@@ -279,9 +279,9 @@ const file_proxy_socks_config_proto_rawDesc = "" +
 	"\vudp_enabled\x18\x04 \x01(\bR\n" +
 	"udpEnabled\x12\x1d\n" +
 	"\n" +
-	"user_level\x18\x06 \x01(\rR\tuserLevel\x12\x1f\n" +
-	"\vudp_over_tcp\x18\a \x01(\bR\n" +
-	"udpOverTcp\x126\n" +
+	"user_level\x18\x06 \x01(\rR\tuserLevel\x12 \n" +
+	"\fudp_over_tcp\x18\a \x01(\bR\n" +
+	"udpOverTcp\x12/\n" +
 	"\x14udp_over_tcp_version\x18\b \x01(\rR\x11udpOverTcpVersion\x1a;\n" +
 	"\rAccountsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

@@ -32,9 +32,9 @@ type SocksServerConfig struct {
 	Accounts   []*SocksAccount `json:"accounts"`
 	UDP        bool            `json:"udp"`
 	// UoT uses -1 to disable; non-negative values enable UoT and set the version.
-	UoT        *int            `json:"uot"`
-	Host       *Address        `json:"ip"`
-	UserLevel  uint32          `json:"userLevel"`
+	UoT       *int     `json:"uot"`
+	Host      *Address `json:"ip"`
+	UserLevel uint32   `json:"userLevel"`
 }
 
 func (v *SocksServerConfig) Build() (proto.Message, error) {

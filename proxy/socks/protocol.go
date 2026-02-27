@@ -17,12 +17,12 @@ const (
 	socks5Version = 0x05
 	socks4Version = 0x04
 
-	cmdTCPConnect    = 0x01
-	cmdTCPBind       = 0x02
-	cmdUDPAssociate  = 0x03
+	cmdTCPConnect        = 0x01
+	cmdTCPBind           = 0x02
+	cmdUDPAssociate      = 0x03
 	cmdUDPAssociateInTCP = 0x05
-	cmdTorResolve    = 0xF0
-	cmdTorResolvePTR = 0xF1
+	cmdTorResolve        = 0xF0
+	cmdTorResolvePTR     = 0xF1
 
 	socks4RequestGranted  = 90
 	socks4RequestRejected = 91
@@ -32,8 +32,8 @@ const (
 	authPassword         = 0x02
 	authNoMatchingMethod = 0xFF
 
-	statusSuccess       = 0x00
-	statusCmdNotSupport = 0x07
+	statusSuccess        = 0x00
+	statusCmdNotSupport  = 0x07
 	statusAddrNotSupport = 0x08
 )
 
