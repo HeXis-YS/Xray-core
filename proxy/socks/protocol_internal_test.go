@@ -51,3 +51,35 @@ func TestHandshake5UnixListenResponseUsesIP(t *testing.T) {
 		t.Fatalf("response ATYP must be IPv4/IPv6, got: 0x%02x", resp[5])
 	}
 }
+
+func TestHandshake5UnixListenRejectsUDPAssociate(t *testing.T) {
+	session := &ServerSession{
+		config: &ServerConfig{
+			AuthType:   AuthType_NO_AUTH,
+			UdpEnabled: true,
+		},
+		address:      net.DomainAddress("@socks"),
+		port:         0,
+		localAddress: net.AnyIP,
+	}
+
+	input := bytes.NewBuffer(nil)
+	// Greeting: VER=5, NMETHODS=1, METHODS=[NO_AUTH].
+	input.Write([]byte{0x05, 0x01, 0x00})
+	// Request: VER=5, CMD=UDP_ASSOCIATE(0x03), RSV=0, ATYP=IPv4, DST=0.0.0.0:0.
+	input.Write([]byte{0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
+
+	output := bytes.NewBuffer(nil)
+	_, _, err := session.Handshake(input, output)
+	if err == nil {
+		t.Fatal("expected UDP associate rejection on unix listen")
+	}
+	resp := output.Bytes()
+	// auth response + socks response
+	if len(resp) < 4+2 {
+		t.Fatalf("short response: %v", resp)
+	}
+	if resp[2] != 0x05 || resp[3] != statusCmdNotSupport {
+		t.Fatalf("unexpected response: %v", resp[2:4])
+	}
+}

@@ -3,6 +3,7 @@ package socks
 import (
 	"encoding/binary"
 	"io"
+	"strings"
 
 	"github.com/sagernet/sing/common/uot"
 	"github.com/xtls/xray-core/common"
@@ -51,6 +52,14 @@ type ServerSession struct {
 
 type Socks5UDPRequest struct {
 	UDPInTCP bool
+}
+
+func isUnixSocketAddress(address net.Address) bool {
+	if address == nil || !address.Family().IsDomain() {
+		return false
+	}
+	domain := address.Domain()
+	return strings.HasPrefix(domain, "/") || strings.HasPrefix(domain, "@")
 }
 
 func (s *ServerSession) handshake4(cmd byte, reader io.Reader, writer io.Writer) (*protocol.RequestHeader, *Socks5UDPRequest, error) {
@@ -177,6 +186,10 @@ func (s *ServerSession) handshake5(nMethod byte, reader io.Reader, writer io.Wri
 		if !s.config.UdpEnabled {
 			writeSocks5Response(writer, statusCmdNotSupport, net.AnyIP, net.Port(0))
 			return nil, nil, errors.New("UDP is not enabled.")
+		}
+		if isUnixSocketAddress(s.address) {
+			writeSocks5Response(writer, statusCmdNotSupport, net.AnyIP, net.Port(0))
+			return nil, nil, errors.New("UDP associate is not supported on unix stream sockets. Use UDP-in-TCP command 0x05.")
 		}
 		request.Command = protocol.RequestCommandUDP
 	case cmdUDPAssociateInTCP:
