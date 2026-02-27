@@ -3,7 +3,6 @@ package socks
 import (
 	"encoding/binary"
 	"io"
-	"math"
 
 	"github.com/sagernet/sing/common/uot"
 	"github.com/xtls/xray-core/common"
@@ -51,8 +50,7 @@ type ServerSession struct {
 }
 
 type Socks5UDPRequest struct {
-	PacketLength      int32
-	packetLengthCache [4]byte
+	UDPInTCP bool
 }
 
 func (s *ServerSession) handshake4(cmd byte, reader io.Reader, writer io.Writer) (*protocol.RequestHeader, *Socks5UDPRequest, error) {
@@ -191,10 +189,7 @@ func (s *ServerSession) handshake5(nMethod byte, reader io.Reader, writer io.Wri
 			return nil, nil, errors.New("UDP in TCP is not enabled.")
 		}
 		request.Command = protocol.RequestCommandUDP
-		requestInTCP.PacketLength = 2
-		if s.config.UdpOverTcpVersion == uint32(uot.LegacyVersion) {
-			requestInTCP.PacketLength = 4
-		}
+		requestInTCP.UDPInTCP = true
 	case cmdTCPBind:
 		writeSocks5Response(writer, statusCmdNotSupport, net.AnyIP, net.Port(0))
 		return nil, nil, errors.New("TCP bind is not supported.")
@@ -232,7 +227,7 @@ func (s *ServerSession) handshake5(nMethod byte, reader io.Reader, writer io.Wri
 	if err := writeSocks5Response(writer, statusSuccess, responseAddress, responsePort); err != nil {
 		return nil, nil, err
 	}
-	if requestInTCP.PacketLength == 0 {
+	if !requestInTCP.UDPInTCP {
 		requestInTCP = nil
 	}
 	return request, requestInTCP, nil
@@ -393,6 +388,69 @@ func EncodeUDPPacket(request *protocol.RequestHeader, data []byte) (*buf.Buffer,
 	return b, nil
 }
 
+func DecodeUDPInTCPPacket(packet *buf.Buffer) (*protocol.RequestHeader, error) {
+	if packet.Len() < 5 {
+		return nil, errors.New("insufficient length of packet.")
+	}
+	request := &protocol.RequestHeader{
+		Version: socks5Version,
+		Command: protocol.RequestCommandUDP,
+	}
+
+	dataLength := int32(binary.BigEndian.Uint16(packet.BytesRange(0, 2)))
+	headerLength := int32(packet.Byte(2))
+	if headerLength < 5 {
+		return nil, errors.New("invalid udp-in-tcp header length.")
+	}
+	if packet.Len() != dataLength+headerLength {
+		return nil, errors.New("invalid udp-in-tcp packet length.")
+	}
+
+	packet.Advance(3)
+	beforeLen := packet.Len()
+	addr, port, err := addrParser.ReadAddressPort(nil, packet)
+	if err != nil {
+		return nil, errors.New("failed to read UDP-in-TCP header").Base(err)
+	}
+	if beforeLen-packet.Len() != headerLength-3 {
+		return nil, errors.New("invalid udp-in-tcp address length.")
+	}
+	if packet.Len() != dataLength {
+		return nil, errors.New("invalid udp-in-tcp payload length.")
+	}
+	request.Address = addr
+	request.Port = port
+	return request, nil
+}
+
+func EncodeUDPInTCPPacket(request *protocol.RequestHeader, data []byte) (*buf.Buffer, error) {
+	if len(data) > 0xFFFF {
+		return nil, errors.New("udp-in-tcp payload too large: ", len(data))
+	}
+	addrBuf := buf.New()
+	defer addrBuf.Release()
+	if err := addrParser.WriteAddressPort(addrBuf, request.Address, request.Port); err != nil {
+		return nil, err
+	}
+	headerLength := int32(3 + addrBuf.Len())
+	if headerLength > 0xFF {
+		return nil, errors.New("udp-in-tcp header too large: ", headerLength)
+	}
+
+	packet := buf.New()
+	header := packet.Extend(3)
+	binary.BigEndian.PutUint16(header[:2], uint16(len(data)))
+	header[2] = byte(headerLength)
+	common.Must2(packet.Write(addrBuf.Bytes()))
+	// if data is too large, return an empty buffer (drop too big data)
+	if packet.Available() < int32(len(data)) {
+		packet.Clear()
+		return packet, nil
+	}
+	common.Must2(packet.Write(data))
+	return packet, nil
+}
+
 type UDPReader struct {
 	Reader       io.Reader
 	Request      *protocol.RequestHeader
@@ -409,22 +467,21 @@ func NewUDPReader(reader io.Reader, request *protocol.RequestHeader, requestInTC
 
 func (r *UDPReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
 	buffer := buf.New()
-	if requestInTCP := r.RequestInTCP; requestInTCP != nil {
-		if _, err := io.ReadFull(r.Reader, requestInTCP.packetLengthCache[:requestInTCP.PacketLength]); err != nil {
+	if requestInTCP := r.RequestInTCP; requestInTCP != nil && requestInTCP.UDPInTCP {
+		frameHeader := [3]byte{}
+		if _, err := io.ReadFull(r.Reader, frameHeader[:]); err != nil {
 			buffer.Release()
 			return nil, err
 		}
-		var length int32
-		if requestInTCP.PacketLength == 4 {
-			length = int32(binary.BigEndian.Uint32(requestInTCP.packetLengthCache[:4]))
-		} else {
-			length = int32(binary.BigEndian.Uint16(requestInTCP.packetLengthCache[:2]))
-		}
-		if length <= 0 {
+		dataLength := int32(binary.BigEndian.Uint16(frameHeader[:2]))
+		headerLength := int32(frameHeader[2])
+		if headerLength < 5 {
 			buffer.Release()
-			return nil, io.EOF
+			return nil, errors.New("invalid udp-in-tcp header length: ", headerLength)
 		}
-		if _, err := buffer.ReadFullFrom(r.Reader, length); err != nil {
+		frameLength := headerLength + dataLength
+		common.Must2(buffer.Write(frameHeader[:]))
+		if _, err := buffer.ReadFullFrom(r.Reader, frameLength-3); err != nil {
 			buffer.Release()
 			return nil, err
 		}
@@ -434,7 +491,15 @@ func (r *UDPReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
 			return nil, err
 		}
 	}
-	u, err := DecodeUDPPacket(buffer)
+	var (
+		u   *protocol.RequestHeader
+		err error
+	)
+	if requestInTCP := r.RequestInTCP; requestInTCP != nil && requestInTCP.UDPInTCP {
+		u, err = DecodeUDPInTCPPacket(buffer)
+	} else {
+		u, err = DecodeUDPPacket(buffer)
+	}
 	if err != nil {
 		buffer.Release()
 		return nil, err
@@ -472,27 +537,19 @@ func (w *UDPWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
 				Port:    b.UDP.Port,
 			}
 		}
-		packet, err := EncodeUDPPacket(request, b.Bytes())
+		var (
+			packet *buf.Buffer
+			err    error
+		)
+		if requestInTCP := w.RequestInTCP; requestInTCP != nil && requestInTCP.UDPInTCP {
+			packet, err = EncodeUDPInTCPPacket(request, b.Bytes())
+		} else {
+			packet, err = EncodeUDPPacket(request, b.Bytes())
+		}
 		b.Release()
 		if err != nil {
 			buf.ReleaseMulti(mb)
 			return err
-		}
-		if requestInTCP := w.RequestInTCP; requestInTCP != nil {
-			if requestInTCP.PacketLength == 2 && packet.Len() > math.MaxUint16 {
-				packet.Release()
-				continue
-			}
-			if requestInTCP.PacketLength == 4 {
-				binary.BigEndian.PutUint32(requestInTCP.packetLengthCache[:4], uint32(packet.Len()))
-			} else {
-				binary.BigEndian.PutUint16(requestInTCP.packetLengthCache[:2], uint16(packet.Len()))
-			}
-			if _, err := w.Writer.Write(requestInTCP.packetLengthCache[:requestInTCP.PacketLength]); err != nil {
-				packet.Release()
-				buf.ReleaseMulti(mb)
-				return err
-			}
 		}
 		_, err = w.Writer.Write(packet.Bytes())
 		packet.Release()
@@ -558,12 +615,11 @@ func ClientHandshake(request *protocol.RequestHeader, reader io.Reader, writer i
 	if request.Command == protocol.RequestCommandUDP {
 		command = byte(cmdUDPAssociate)
 		if request.Address.Family().IsDomain() {
-			if request.Address.Domain() == uot.MagicAddress {
+			// Keep both trigger domains for compatibility, but CMD=0x05 always uses
+			// SOCKS UDP-in-TCP framing (MSGLEN/HDRLEN/ATYP...).
+			if request.Address.Domain() == uot.MagicAddress || request.Address.Domain() == uot.LegacyMagicAddress {
 				command = byte(cmdUDPAssociateInTCP)
-				requestInTCP.PacketLength = 2
-			} else if request.Address.Domain() == uot.LegacyMagicAddress {
-				command = byte(cmdUDPAssociateInTCP)
-				requestInTCP.PacketLength = 4
+				requestInTCP.UDPInTCP = true
 			}
 		}
 	}
@@ -604,7 +660,7 @@ func ClientHandshake(request *protocol.RequestHeader, reader io.Reader, writer i
 			Address: address,
 			Port:    port,
 		}
-		if requestInTCP.PacketLength == 0 {
+		if !requestInTCP.UDPInTCP {
 			requestInTCP = nil
 		}
 		return udpRequest, requestInTCP, nil

@@ -7,7 +7,6 @@ import (
 	gonet "net"
 	"time"
 
-	"github.com/sagernet/sing/common/uot"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
@@ -143,21 +142,6 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 	if request.User != nil {
 		inbound.User.Email = request.User.Email
 	}
-	if request.Address.Family().IsDomain() {
-		if request.Address.Domain() == uot.MagicAddress && request.Port == 10086 {
-			request.Address = net.AnyIP
-			request.Port = 0
-			if requestInTCP != nil {
-				requestInTCP.PacketLength = 2
-			}
-		} else if request.Address.Domain() == uot.LegacyMagicAddress && request.Port == 10086 {
-			request.Address = net.AnyIP
-			request.Port = 0
-			if requestInTCP != nil {
-				requestInTCP.PacketLength = 4
-			}
-		}
-	}
 
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		errors.LogInfoInner(ctx, err, "failed to clear deadline")
@@ -237,32 +221,17 @@ func (*Server) handleUDPOverTCP(ctx context.Context, reader *buf.BufferedReader,
 			}
 		}
 		udpMessage, err := EncodeUDPPacket(request, payload.Bytes())
+		if requestInTCP != nil && requestInTCP.UDPInTCP {
+			udpMessage, err = EncodeUDPInTCPPacket(request, payload.Bytes())
+		}
 		if err != nil {
 			errors.LogWarningInner(ctx, err, "failed to write UDP response")
 			return
 		}
 		defer udpMessage.Release()
-
-		udpResponse := buf.New()
-		if requestInTCP.PacketLength == 4 {
-			udpResponse.Write([]byte{0, 0, 0, 0})
-		} else {
-			udpResponse.Write([]byte{0, 0})
-		}
-		udpResponse.Write(udpMessage.Bytes())
-		if requestInTCP.PacketLength == 4 {
-			udpResponse.SetByte(0, byte(udpMessage.Len()>>24))
-			udpResponse.SetByte(1, byte(udpMessage.Len()>>16))
-			udpResponse.SetByte(2, byte(udpMessage.Len()>>8))
-			udpResponse.SetByte(3, byte(udpMessage.Len()))
-		} else {
-			udpResponse.SetByte(0, byte(udpMessage.Len()>>8))
-			udpResponse.SetByte(1, byte(udpMessage.Len()))
-		}
-		if _, err := conn.Write(udpResponse.Bytes()); err != nil {
+		if _, err := conn.Write(udpMessage.Bytes()); err != nil {
 			errors.LogWarningInner(ctx, err, "failed to write UDP response")
 		}
-		udpResponse.Release()
 	})
 	defer udpServer.RemoveRay()
 	udpReader := NewUDPReader(reader, request, requestInTCP)

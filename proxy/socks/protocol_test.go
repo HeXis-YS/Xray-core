@@ -42,7 +42,7 @@ func TestUDPInTCPEncoding(t *testing.T) {
 		Address: net.IPAddress([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6}),
 		Port:    1024,
 	}
-	requestInTCP := &Socks5UDPRequest{PacketLength: 2}
+	requestInTCP := &Socks5UDPRequest{UDPInTCP: true}
 	writer := NewUDPWriter(b, request, requestInTCP)
 
 	content := []byte{'a'}
@@ -59,26 +59,29 @@ func TestUDPInTCPEncoding(t *testing.T) {
 	}
 }
 
-func TestUDPInTCPLegacyEncoding(t *testing.T) {
+func TestUDPInTCPDecodeHevFrame(t *testing.T) {
 	b := buf.New()
-
-	request := &protocol.RequestHeader{
-		Address: net.IPAddress([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6}),
-		Port:    1024,
-	}
-	requestInTCP := &Socks5UDPRequest{PacketLength: 4}
-	writer := NewUDPWriter(b, request, requestInTCP)
-
-	content := []byte{'a'}
-	payload := buf.New()
-	payload.Write(content)
-	common.Must(writer.WriteMultiBuffer(buf.MultiBuffer{payload}))
-
+	common.Must2(b.Write([]byte{
+		0x00, 0x01, 0x0a,
+		0x01, 0x01, 0x02, 0x03, 0x04, 0x04, 0x00,
+		'a',
+	}))
+	requestInTCP := &Socks5UDPRequest{UDPInTCP: true}
+	request := &protocol.RequestHeader{}
 	reader := NewUDPReader(b, request, requestInTCP)
 
 	decodedPayload, err := reader.ReadMultiBuffer()
 	common.Must(err)
-	if r := cmp.Diff(decodedPayload[0].Bytes(), content); r != "" {
+	if r := cmp.Diff(decodedPayload[0].Bytes(), []byte{'a'}); r != "" {
+		t.Error(r)
+	}
+	if decodedPayload[0].UDP == nil {
+		t.Fatal("expect destination in decoded payload")
+	}
+	if r := cmp.Diff(decodedPayload[0].UDP.Address, net.ParseAddress("1.2.3.4")); r != "" {
+		t.Error(r)
+	}
+	if r := cmp.Diff(decodedPayload[0].UDP.Port, net.Port(1024)); r != "" {
 		t.Error(r)
 	}
 }
