@@ -209,6 +209,15 @@ func (s *ServerSession) handshake5(nMethod byte, reader io.Reader, writer io.Wri
 
 	responseAddress := s.address
 	responsePort := s.port
+	// Some clients (including hev-socks5-core) only accept IPv4/IPv6 in
+	// responses. For unix-listen inbounds, gateway address is a domain path,
+	// so normalize it to an IP fallback.
+	if responseAddress == nil || responseAddress.Family().IsDomain() {
+		responseAddress = s.localAddress
+		if responseAddress == nil || responseAddress.Family().IsDomain() {
+			responseAddress = net.AnyIP
+		}
+	}
 	//nolint:gocritic // Use if else chain for clarity
 	if request.Command == protocol.RequestCommandUDP {
 		if s.config.Address != nil {
