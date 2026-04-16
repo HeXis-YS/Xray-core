@@ -60,7 +60,7 @@ func (s *Server) policy() policy.Session {
 
 // Network implements proxy.Inbound.
 func (s *Server) Network() []net.Network {
-	list := []net.Network{net.Network_TCP}
+	list := []net.Network{net.Network_TCP, net.Network_UNIX}
 	if s.config.UdpEnabled {
 		list = append(list, net.Network_UDP)
 	}
@@ -80,7 +80,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 	}
 
 	switch network {
-	case net.Network_TCP:
+	case net.Network_TCP, net.Network_UNIX:
 		firstbyte := make([]byte, 1)
 		if n, err := conn.Read(firstbyte); n == 0 {
 			if goerrors.Is(err, io.EOF) {
@@ -116,7 +116,7 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 		config:       s.config,
 		address:      inbound.Gateway.Address,
 		port:         inbound.Gateway.Port,
-		localAddress: net.IPAddress(conn.LocalAddr().(*net.TCPAddr).IP),
+		localAddress: localAddressFromConn(conn),
 	}
 
 	// Firstbyte is for forwarded conn from SOCKS inbound
@@ -180,6 +180,17 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 	}
 
 	return nil
+}
+
+func localAddressFromConn(conn stat.Connection) net.Address {
+	switch addr := conn.LocalAddr().(type) {
+	case *net.TCPAddr:
+		return net.IPAddress(addr.IP)
+	case *net.UnixAddr:
+		return net.AnyIP
+	default:
+		return net.AnyIP
+	}
 }
 
 func (*Server) handleUDP(c io.Reader) error {
