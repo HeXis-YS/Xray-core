@@ -117,27 +117,22 @@ func Test_buildReqMsgs(t *testing.T) {
 		{"dual stack", args{"test.com", dns_feature.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		}, nil}, 2},
 		{"ipv4 only", args{"test.com", dns_feature.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: false,
-			FakeEnable: false,
 		}, nil}, 1},
 		{"ipv6 only", args{"test.com", dns_feature.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: true,
-			FakeEnable: false,
 		}, nil}, 1},
 		{"none/error", args{"test.com", dns_feature.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: false,
-			FakeEnable: false,
 		}, nil}, 0},
 		{"name too long", args{strings.Repeat("a", 256), dns_feature.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		}, nil}, 0},
 	}
 	for _, tt := range tests {

@@ -56,26 +56,22 @@ func New(ctx context.Context, config *Config) (*DNS, error) {
 		ipOption = dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		}
 	case QueryStrategy_USE_SYS:
 		ipOption = dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		}
 		checkSystem = true
 	case QueryStrategy_USE_IP4:
 		ipOption = dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: false,
-			FakeEnable: false,
 		}
 	case QueryStrategy_USE_IP6:
 		ipOption = dns.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: true,
-			FakeEnable: false,
 		}
 	default:
 		return nil, errors.New("unexpected query strategy ", config.QueryStrategy)
@@ -363,7 +359,7 @@ func mergeQueryErrors(domain string, errs []error) error {
 func (s *DNS) serialQuery(domain string, option dns.IPOption) ([]net.IP, uint32, error) {
 	var errs []error
 	for _, client := range s.sortClients(domain) {
-		if !option.FakeEnable && strings.EqualFold(client.Name(), "FakeDNS") {
+		if strings.EqualFold(client.Name(), "FakeDNS") {
 			errors.LogDebug(s.ctx, "skip DNS resolution for domain ", domain, " at server ", client.Name())
 			continue
 		}
@@ -453,7 +449,7 @@ func asyncQueryAll(domain string, option dns.IPOption, clients []*Client, ctx co
 
 	ch := make(chan queryResult, len(clients))
 	for i, client := range clients {
-		if !option.FakeEnable && strings.EqualFold(client.Name(), "FakeDNS") {
+		if strings.EqualFold(client.Name(), "FakeDNS") {
 			errors.LogDebug(ctx, "skip DNS resolution for domain ", domain, " at server ", client.Name())
 			ch <- queryResult{err: dns.ErrEmptyResponse, index: i}
 			continue

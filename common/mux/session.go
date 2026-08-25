@@ -184,7 +184,6 @@ func (s *Session) Close(locked bool) error {
 		common.Close(s.output)
 	} else {
 		// Stop existing handle(), then trigger writer.Close().
-		// Note that s.output may be dispatcher.SizeStatWriter.
 		s.input.(*pipe.Reader).ReturnAnError(io.EOF)
 		runtime.Gosched()
 		// If the error set by ReturnAnError still exists, clear it.

@@ -30,9 +30,6 @@ func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
 		h := new(Handler)
 		if err := core.RequireFeatures(ctx, func(dnsClient dns.Client, policyManager policy.Manager) error {
-			core.OptionalFeatures(ctx, func(fdns dns.FakeDNSEngine) {
-				h.fdns = fdns
-			})
 			return h.Init(config.(*Config), dnsClient, policyManager)
 		}); err != nil {
 			return nil, err
@@ -73,7 +70,6 @@ type ownLinkVerifier interface {
 
 type Handler struct {
 	client          dns.Client
-	fdns            dns.FakeDNSEngine
 	ownLinkVerifier ownLinkVerifier
 	rewriteServer   net.Destination
 	timeout         time.Duration
@@ -320,13 +316,11 @@ func (h *Handler) handleIPQuery(id uint16, qType dnsmessage.Type, domain string,
 		ips, ttl, err = h.client.LookupIP(domain, dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: false,
-			FakeEnable: true,
 		})
 	case dnsmessage.TypeAAAA:
 		ips, ttl, err = h.client.LookupIP(domain, dns.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: true,
-			FakeEnable: true,
 		})
 	}
 

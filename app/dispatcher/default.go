@@ -19,7 +19,6 @@ import (
 	"github.com/xtls/xray-core/features/policy"
 	"github.com/xtls/xray-core/features/routing"
 	routing_session "github.com/xtls/xray-core/features/routing/session"
-	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/transport"
 	"github.com/xtls/xray-core/transport/pipe"
 )
@@ -96,18 +95,13 @@ type DefaultDispatcher struct {
 	ohm    outbound.Manager
 	router routing.Router
 	policy policy.Manager
-	stats  stats.Manager
-	fdns   dns.FakeDNSEngine
 }
 
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
 		d := new(DefaultDispatcher)
-		if err := core.RequireFeatures(ctx, func(om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager, dc dns.Client) error {
-			core.OptionalFeatures(ctx, func(fdns dns.FakeDNSEngine) {
-				d.fdns = fdns
-			})
-			return d.Init(config.(*Config), om, router, pm, sm)
+		if err := core.RequireFeatures(ctx, func(om outbound.Manager, router routing.Router, pm policy.Manager, dc dns.Client) error {
+			return d.Init(config.(*Config), om, router, pm)
 		}); err != nil {
 			return nil, err
 		}
@@ -116,11 +110,10 @@ func init() {
 }
 
 // Init initializes DefaultDispatcher.
-func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager) error {
+func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router routing.Router, pm policy.Manager) error {
 	d.ohm = om
 	d.router = router
 	d.policy = pm
-	d.stats = sm
 	return nil
 }
 
@@ -152,81 +145,7 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 		Writer: downlinkWriter,
 	}
 
-	sessionInbound := session.InboundFromContext(ctx)
-	var user *protocol.MemoryUser
-	if sessionInbound != nil {
-		user = sessionInbound.User
-	}
-
-	if user != nil && len(user.Email) > 0 {
-		p := d.policy.ForLevel(user.Level)
-		if p.Stats.UserUplink {
-			name := "user>>>" + user.Email + ">>>traffic>>>uplink"
-			if c, _ := d.stats.GetOrRegisterCounter(name); c != nil {
-				inboundLink.Writer = &SizeStatWriter{
-					Counter: c,
-					Writer:  inboundLink.Writer,
-				}
-			}
-		}
-		if p.Stats.UserDownlink {
-			name := "user>>>" + user.Email + ">>>traffic>>>downlink"
-			if c, _ := d.stats.GetOrRegisterCounter(name); c != nil {
-				outboundLink.Writer = &SizeStatWriter{
-					Counter: c,
-					Writer:  outboundLink.Writer,
-				}
-			}
-		}
-
-		if p.Stats.UserOnline {
-			trackOnlineIP(ctx, d.stats, user.Email, sessionInbound.Source.Address.String())
-		}
-	}
-
 	return inboundLink, outboundLink
-}
-
-func WrapLink(ctx context.Context, policyManager policy.Manager, statsManager stats.Manager, link *transport.Link) *transport.Link {
-	sessionInbound := session.InboundFromContext(ctx)
-	var user *protocol.MemoryUser
-	if sessionInbound != nil {
-		user = sessionInbound.User
-	}
-
-	link.Reader = &buf.TimeoutWrapperReader{Reader: link.Reader}
-
-	if user != nil && len(user.Email) > 0 {
-		p := policyManager.ForLevel(user.Level)
-		if p.Stats.UserUplink {
-			name := "user>>>" + user.Email + ">>>traffic>>>uplink"
-			if c, _ := statsManager.GetOrRegisterCounter(name); c != nil {
-				link.Reader.(*buf.TimeoutWrapperReader).Counter = c
-			}
-		}
-		if p.Stats.UserDownlink {
-			name := "user>>>" + user.Email + ">>>traffic>>>downlink"
-			if c, _ := statsManager.GetOrRegisterCounter(name); c != nil {
-				link.Writer = &SizeStatWriter{
-					Counter: c,
-					Writer:  link.Writer,
-				}
-			}
-		}
-		if p.Stats.UserOnline {
-			trackOnlineIP(ctx, statsManager, user.Email, sessionInbound.Source.Address.String())
-		}
-	}
-
-	return link
-}
-
-func trackOnlineIP(ctx context.Context, sm stats.Manager, email, ip string) {
-	name := "user>>>" + email + ">>>online"
-	if om, _ := sm.GetOrRegisterOnlineMap(name); om != nil {
-		om.AddIP(ip)
-		context.AfterFunc(ctx, func() { om.RemoveIP(ip) })
-	}
 }
 
 func (d *DefaultDispatcher) shouldOverride(ctx context.Context, result SniffResult, request session.SniffingRequest, destination net.Destination) bool {
@@ -246,11 +165,6 @@ func (d *DefaultDispatcher) shouldOverride(ctx context.Context, result SniffResu
 	}
 	for _, p := range request.OverrideDestinationForProtocol {
 		if strings.HasPrefix(protocolString, p) || strings.HasPrefix(p, protocolString) {
-			return true
-		}
-		if fkr0, ok := d.fdns.(dns.FakeDNSEngineRev0); ok && protocolString != "bittorrent" && p == "fakedns" &&
-			fkr0.IsIPInIPPool(destination.Address) {
-			errors.LogInfo(ctx, "Using sniffer ", protocolString, " since the fake DNS missed")
 			return true
 		}
 		if resultSubset, ok := result.(SnifferIsProtoSubsetOf); ok {
@@ -300,15 +214,7 @@ func (d *DefaultDispatcher) Dispatch(ctx context.Context, destination net.Destin
 				domain := result.Domain()
 				errors.LogInfo(ctx, "sniffed domain: ", domain)
 				destination.Address = net.ParseAddress(domain)
-				protocol := result.Protocol()
-				if resComp, ok := result.(SnifferResultComposite); ok {
-					protocol = resComp.ProtocolForDomainResult()
-				}
-				isFakeIP := false
-				if fkr0, ok := d.fdns.(dns.FakeDNSEngineRev0); ok && fkr0.IsIPInIPPool(ob.Target.Address) {
-					isFakeIP = true
-				}
-				if sniffingRequest.RouteOnly && protocol != "fakedns" && protocol != "fakedns+others" && !isFakeIP {
+				if sniffingRequest.RouteOnly {
 					ob.RouteTarget = destination
 				} else {
 					ob.Target = destination
@@ -338,7 +244,6 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 		content = new(session.Content)
 		ctx = session.ContextWithContent(ctx, content)
 	}
-	outbound = WrapLink(ctx, d.policy, d.stats, outbound)
 	sniffingRequest := content.SniffingRequest
 	if !sniffingRequest.Enabled {
 		d.routedDispatch(ctx, outbound, destination)
@@ -355,15 +260,7 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 			domain := result.Domain()
 			errors.LogInfo(ctx, "sniffed domain: ", domain)
 			destination.Address = net.ParseAddress(domain)
-			protocol := result.Protocol()
-			if resComp, ok := result.(SnifferResultComposite); ok {
-				protocol = resComp.ProtocolForDomainResult()
-			}
-			isFakeIP := false
-			if fkr0, ok := d.fdns.(dns.FakeDNSEngineRev0); ok && fkr0.IsIPInIPPool(ob.Target.Address) {
-				isFakeIP = true
-			}
-			if sniffingRequest.RouteOnly && protocol != "fakedns" && protocol != "fakedns+others" && !isFakeIP {
+			if sniffingRequest.RouteOnly {
 				ob.RouteTarget = destination
 			} else {
 				ob.Target = destination

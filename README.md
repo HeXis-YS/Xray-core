@@ -244,6 +244,32 @@ If you are compiling a 32-bit MIPS/MIPSLE target, use this command instead:
 CGO_ENABLED=0 go build -o xray -trimpath -buildvcs=false -gcflags="-l=4" -ldflags="-X github.com/xtls/xray-core/core.build=REPLACE -s -w -buildid=" -v ./main
 ```
 
+## Slim Build
+
+The `slim` branch removes components that are not needed to run the
+[Xray-config](https://github.com/hexi-s/Xray-config) top-level configurations.
+
+Kept:
+
+- Proxies: socks, http, vless (without reverse), freedom, dns, blackhole, dokodemo
+- Transports: tcp, tls, reality, udp, noop headers
+- App: dispatcher, proxyman, dns (UDP/TCP/localhost/hosts/cache), geodata, router (field rules), policy, log, version
+- Features: mux, xudp, sockopt
+- Commands: run, version, x25519, uuid, vlessenc, mldsa65, mlkem768, wg
+- Config formats: JSON / JSONC only
+
+Removed: fakedns, quic, loopback, shadowsocks/2022, trojan, vmess, wireguard,
+hysteria, tun, grpc, httpupgrade, kcp, splithttp (xhttp), websocket,
+browser_dialer, http headers, finalmask, commander, stats, metrics,
+observatory, reverse, router command/balancing, extension, TOML/YAML, and the
+`api`/`convert`/`tls` commands.
+
+The slim build was verified once at creation time: `go build`/`go vet`/`go test`
+pass, all 8 supported Xray-config top-level configs report `Configuration OK.`,
+and the binary is about 24% smaller than the baseline (25.3 MiB vs 33.2 MiB).
+The full verification evidence is recorded in
+`.codex/runs/2026-08-25-slim/`.
+
 ## Stargazers over time
 
 [![Stargazers over time](https://starchart.cc/XTLS/Xray-core.svg)](https://starchart.cc/XTLS/Xray-core)

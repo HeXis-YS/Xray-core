@@ -86,12 +86,7 @@ func (c *VLessInboundConfig) Build() (proto.Message, error) {
 		}
 
 		if account.Reverse != nil {
-			if account.Reverse.Tag == "" {
-				return errors.New(`VLESS users: "tag" can't be empty for "reverse"`)
-			}
-			if account.Reverse.Sniffing != nil { // may not be reached: error json unmarshal
-				return errors.New(`VLESS users: inbound's "reverse" can't have "sniffing"`)
-			}
+			return errors.New(`VLESS users: "reverse" is not supported in this slim build`)
 		}
 
 		user.Account = serial.ToTypedMessage(account)

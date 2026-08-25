@@ -53,29 +53,10 @@ func NewServer(ctx context.Context, dest net.Destination, dispatcher routing.Dis
 		switch {
 		case strings.EqualFold(u.String(), "localhost"):
 			return NewLocalNameServer(), nil
-		case strings.EqualFold(u.Scheme, "https"): // DNS-over-HTTPS Remote mode
-			return NewDoHNameServer(u, dispatcher, false, disableCache, serveStale, serveExpiredTTL, clientIP), nil
-		case strings.EqualFold(u.Scheme, "h2c"): // DNS-over-HTTPS h2c Remote mode
-			return NewDoHNameServer(u, dispatcher, true, disableCache, serveStale, serveExpiredTTL, clientIP), nil
-		case strings.EqualFold(u.Scheme, "https+local"): // DNS-over-HTTPS Local mode
-			return NewDoHNameServer(u, nil, false, disableCache, serveStale, serveExpiredTTL, clientIP), nil
-		case strings.EqualFold(u.Scheme, "h2c+local"): // DNS-over-HTTPS h2c Local mode
-			return NewDoHNameServer(u, nil, true, disableCache, serveStale, serveExpiredTTL, clientIP), nil
-		case strings.EqualFold(u.Scheme, "quic+local"): // DNS-over-QUIC Local mode
-			return NewQUICNameServer(u, disableCache, serveStale, serveExpiredTTL, clientIP)
 		case strings.EqualFold(u.Scheme, "tcp"): // DNS-over-TCP Remote mode
 			return NewTCPNameServer(u, dispatcher, disableCache, serveStale, serveExpiredTTL, clientIP)
 		case strings.EqualFold(u.Scheme, "tcp+local"): // DNS-over-TCP Local mode
 			return NewTCPLocalNameServer(u, disableCache, serveStale, serveExpiredTTL, clientIP)
-		case strings.EqualFold(u.String(), "fakedns"):
-			var fd dns.FakeDNSEngine
-			err = core.RequireFeatures(ctx, func(fdns dns.FakeDNSEngine) {
-				fd = fdns
-			})
-			if err != nil {
-				return nil, err
-			}
-			return NewFakeDNSServer(fd), nil
 		}
 	}
 	if dest.Network == net.Network_Unknown {
@@ -237,13 +218,11 @@ func ResolveIpOptionOverride(queryStrategy QueryStrategy, ipOption dns.IPOption)
 		return dns.IPOption{
 			IPv4Enable: ipOption.IPv4Enable,
 			IPv6Enable: false,
-			FakeEnable: false,
 		}
 	case QueryStrategy_USE_IP6:
 		return dns.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: ipOption.IPv6Enable,
-			FakeEnable: false,
 		}
 	default:
 		return ipOption

@@ -162,7 +162,6 @@ func TestUDPServerSubnet(t *testing.T) {
 	ips, _, err := client.LookupIP("google.com", feature_dns.IPOption{
 		IPv4Enable: true,
 		IPv6Enable: true,
-		FakeEnable: false,
 	})
 	if err != nil {
 		t.Fatal("unexpected error: ", err)
@@ -225,7 +224,6 @@ func TestUDPServer(t *testing.T) {
 		ips, _, err := client.LookupIP("google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -240,7 +238,6 @@ func TestUDPServer(t *testing.T) {
 		ips, _, err := client.LookupIP("facebook.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -255,7 +252,6 @@ func TestUDPServer(t *testing.T) {
 		_, _, err := client.LookupIP("notexist.google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err == nil {
 			t.Fatal("nil error")
@@ -269,7 +265,6 @@ func TestUDPServer(t *testing.T) {
 		ips, _, err := client.LookupIP("ipv4only.google.com", feature_dns.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if !errors.AllEqual(feature_dns.ErrEmptyResponse, errors.Cause(err)) {
 			t.Fatal("error: ", err)
@@ -285,7 +280,6 @@ func TestUDPServer(t *testing.T) {
 		ips, _, err := client.LookupIP("google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -367,7 +361,6 @@ func TestPrioritizedDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -435,7 +428,6 @@ func TestUDPServerIPv6(t *testing.T) {
 		ips, _, err := client.LookupIP("ipv6.google.com", feature_dns.IPOption{
 			IPv4Enable: false,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -505,7 +497,6 @@ func TestStaticHostDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("example.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -594,7 +585,6 @@ func TestIPMatch(t *testing.T) {
 		ips, _, err := client.LookupIP("google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -713,7 +703,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("hostname", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -728,7 +717,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("hostname.local", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -743,7 +731,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("hostnamestatic", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -758,7 +745,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("hostnamealias", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -773,7 +759,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("localhost", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -788,7 +773,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("localhost-a", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -803,7 +787,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("localhost-b", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -818,7 +801,6 @@ func TestLocalDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("Mijia Cloud", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -970,7 +952,6 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -985,7 +966,6 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("ipv6.google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: false,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -1000,7 +980,6 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("api.google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)
@@ -1015,7 +994,6 @@ func TestMultiMatchPrioritizedDomain(t *testing.T) {
 		ips, _, err := client.LookupIP("v2.api.google.com", feature_dns.IPOption{
 			IPv4Enable: true,
 			IPv6Enable: true,
-			FakeEnable: false,
 		})
 		if err != nil {
 			t.Fatal("unexpected error: ", err)

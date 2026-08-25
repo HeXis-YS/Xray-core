@@ -9,7 +9,6 @@ import (
 	"github.com/xtls/xray-core/common/protocol"
 	"github.com/xtls/xray-core/common/protocol/bittorrent"
 	"github.com/xtls/xray-core/common/protocol/http"
-	"github.com/xtls/xray-core/common/protocol/quic"
 	"github.com/xtls/xray-core/common/protocol/tls"
 )
 
@@ -39,17 +38,8 @@ func NewSniffer(ctx context.Context) *Sniffer {
 			{func(c context.Context, b []byte) (SniffResult, error) { return http.SniffHTTP(b, c) }, false, net.Network_TCP},
 			{func(c context.Context, b []byte) (SniffResult, error) { return tls.SniffTLS(b) }, false, net.Network_TCP},
 			{func(c context.Context, b []byte) (SniffResult, error) { return bittorrent.SniffBittorrent(b) }, false, net.Network_TCP},
-			{func(c context.Context, b []byte) (SniffResult, error) { return quic.SniffQUIC(b) }, false, net.Network_UDP},
 			{func(c context.Context, b []byte) (SniffResult, error) { return bittorrent.SniffUTP(b) }, false, net.Network_UDP},
 		},
-	}
-	if sniffer, err := newFakeDNSSniffer(ctx); err == nil {
-		others := ret.sniffer
-		ret.sniffer = append(ret.sniffer, sniffer)
-		fakeDNSThenOthers, err := newFakeDNSThenOthers(ctx, sniffer, others)
-		if err == nil {
-			ret.sniffer = append([]protocolSnifferWithMetadata{fakeDNSThenOthers}, ret.sniffer...)
-		}
 	}
 	return ret
 }

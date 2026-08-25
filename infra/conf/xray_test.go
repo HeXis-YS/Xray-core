@@ -18,11 +18,10 @@ import (
 	"github.com/xtls/xray-core/common/serial"
 	core "github.com/xtls/xray-core/core"
 	. "github.com/xtls/xray-core/infra/conf"
-	"github.com/xtls/xray-core/proxy/vmess"
-	"github.com/xtls/xray-core/proxy/vmess/inbound"
+	"github.com/xtls/xray-core/proxy/vless"
+	"github.com/xtls/xray-core/proxy/vless/inbound"
 	"github.com/xtls/xray-core/transport/internet"
 	"github.com/xtls/xray-core/transport/internet/tls"
-	"github.com/xtls/xray-core/transport/internet/websocket"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -47,22 +46,18 @@ func TestXrayConfig(t *testing.T) {
 				},
 				"inbounds": [{
 					"streamSettings": {
-						"network": "ws",
-						"wsSettings": {
-							"host": "example.domain",
-							"path": ""
-						},
+						"network": "tcp",
 						"tlsSettings": {
 							"alpn": "h2"
 						},
 						"security": "tls"
 					},
-					"protocol": "vmess",
+					"protocol": "vless",
 					"port": "443-500",
 					"settings": {
+						"decryption": "none",
 						"clients": [
 							{
-								"security": "aes-128-gcm",
 								"id": "0cdf8a45-303d-4fed-9780-29aa7f54175e"
 							}
 						]
@@ -120,15 +115,7 @@ func TestXrayConfig(t *testing.T) {
 								To:   500,
 							}}},
 							StreamSettings: &internet.StreamConfig{
-								ProtocolName: "websocket",
-								TransportSettings: []*internet.TransportConfig{
-									{
-										ProtocolName: "websocket",
-										Settings: serial.ToTypedMessage(&websocket.Config{
-											Host: "example.domain",
-										}),
-									},
-								},
+								ProtocolName: "tcp",
 								SecurityType: "xray.transport.internet.tls.Config",
 								SecuritySettings: []*serial.TypedMessage{
 									serial.ToTypedMessage(&tls.Config{
@@ -138,14 +125,12 @@ func TestXrayConfig(t *testing.T) {
 							},
 						}),
 						ProxySettings: serial.ToTypedMessage(&inbound.Config{
-							User: []*protocol.User{
+							Decryption: "none",
+							Users: []*protocol.User{
 								{
 									Level: 0,
-									Account: serial.ToTypedMessage(&vmess.Account{
+									Account: serial.ToTypedMessage(&vless.Account{
 										Id: "0cdf8a45-303d-4fed-9780-29aa7f54175e",
-										SecuritySettings: &protocol.SecurityConfig{
-											Type: protocol.SecurityType_AES128_GCM,
-										},
 									}),
 								},
 							},
@@ -283,9 +268,6 @@ func TestConfig_Override(t *testing.T) {
 				RouterConfig: &RouterConfig{},
 				DNSConfig:    &DNSConfig{},
 				Policy:       &PolicyConfig{},
-				API:          &APIConfig{},
-				Stats:        &StatsConfig{},
-				Reverse:      &ReverseConfig{},
 			},
 			"",
 			&Config{
@@ -293,9 +275,6 @@ func TestConfig_Override(t *testing.T) {
 				RouterConfig: &RouterConfig{},
 				DNSConfig:    &DNSConfig{},
 				Policy:       &PolicyConfig{},
-				API:          &APIConfig{},
-				Stats:        &StatsConfig{},
-				Reverse:      &ReverseConfig{},
 			},
 		},
 		{

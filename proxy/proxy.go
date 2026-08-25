@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
-	"github.com/xtls/xray-core/app/dispatcher"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/net"
@@ -28,7 +27,6 @@ import (
 	"github.com/xtls/xray-core/proxy/vless/encryption"
 	"github.com/xtls/xray-core/transport"
 	"github.com/xtls/xray-core/transport/internet"
-	"github.com/xtls/xray-core/transport/internet/finalmask"
 	"github.com/xtls/xray-core/transport/internet/reality"
 	"github.com/xtls/xray-core/transport/internet/stat"
 	"github.com/xtls/xray-core/transport/internet/tls"
@@ -699,8 +697,6 @@ func UnwrapRawConn(conn net.Conn) (net.Conn, stats.Counter, stats.Counter) {
 			}
 		}
 
-		conn = finalmask.UnwrapTcpMask(conn)
-
 		if pc, ok := conn.(*proxyproto.Conn); ok {
 			conn = pc.Raw()
 			// 8192 > 4096, there is no need to process pc's bufReader
@@ -751,7 +747,6 @@ func CopyRawConnIfExist(ctx context.Context, readerConn net.Conn, writerConn net
 		}
 		if splice {
 			errors.LogDebug(ctx, "CopyRawConn splice")
-			statWriter, _ := writer.(*dispatcher.SizeStatWriter)
 			//runtime.Gosched() // necessary
 			timer.SetTimeout(24 * time.Hour) // prevent leak, just in case
 			if inTimer != nil {
@@ -763,9 +758,6 @@ func CopyRawConnIfExist(ctx context.Context, readerConn net.Conn, writerConn net
 			}
 			if writeCounter != nil {
 				writeCounter.Add(w) // inbound stats
-			}
-			if statWriter != nil {
-				statWriter.Counter.Add(w) // user stats
 			}
 			if err != nil && errors.Cause(err) != io.EOF {
 				return err
@@ -801,7 +793,6 @@ func readV(ctx context.Context, reader buf.Reader, writer buf.Writer, timer sign
 
 func IsRAWTransportWithoutSecurity(conn stat.Connection) bool {
 	iConn := stat.TryUnwrapStatsConn(conn)
-	iConn = finalmask.UnwrapTcpMask(iConn)
 	_, ok1 := iConn.(*proxyproto.Conn)
 	_, ok2 := iConn.(*net.TCPConn)
 	_, ok3 := iConn.(*internet.UnixConnWrapper)

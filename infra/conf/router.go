@@ -7,71 +7,11 @@ import (
 	"github.com/xtls/xray-core/app/router"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/geodata"
-	"github.com/xtls/xray-core/common/serial"
-
-	"google.golang.org/protobuf/proto"
 )
-
-// StrategyConfig represents a strategy config
-type StrategyConfig struct {
-	Type     string           `json:"type"`
-	Settings *json.RawMessage `json:"settings"`
-}
-
-type BalancingRule struct {
-	Tag         string         `json:"tag"`
-	Selectors   StringList     `json:"selector"`
-	Strategy    StrategyConfig `json:"strategy"`
-	FallbackTag string         `json:"fallbackTag"`
-}
-
-// Build builds the balancing rule
-func (r *BalancingRule) Build() (*router.BalancingRule, error) {
-	if r.Tag == "" {
-		return nil, errors.New("empty balancer tag")
-	}
-	if len(r.Selectors) == 0 {
-		return nil, errors.New("empty selector list")
-	}
-
-	r.Strategy.Type = strings.ToLower(r.Strategy.Type)
-	switch r.Strategy.Type {
-	case "":
-		r.Strategy.Type = strategyRandom
-	case strategyRandom, strategyLeastLoad, strategyLeastPing, strategyRoundRobin:
-	default:
-		return nil, errors.New("unknown balancing strategy: " + r.Strategy.Type)
-	}
-
-	settings := []byte("{}")
-	if r.Strategy.Settings != nil {
-		settings = ([]byte)(*r.Strategy.Settings)
-	}
-	rawConfig, err := strategyConfigLoader.LoadWithID(settings, r.Strategy.Type)
-	if err != nil {
-		return nil, errors.New("failed to parse to strategy config.").Base(err)
-	}
-	var ts proto.Message
-	if builder, ok := rawConfig.(Buildable); ok {
-		ts, err = builder.Build()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &router.BalancingRule{
-		Strategy:         r.Strategy.Type,
-		StrategySettings: serial.ToTypedMessage(ts),
-		FallbackTag:      r.FallbackTag,
-		OutboundSelector: r.Selectors,
-		Tag:              r.Tag,
-	}, nil
-}
 
 type RouterConfig struct {
 	RuleList       []json.RawMessage `json:"rules"`
 	DomainStrategy *string           `json:"domainStrategy"`
-	Balancers      []*BalancingRule  `json:"balancers"`
 }
 
 func (c *RouterConfig) getDomainStrategy() router.Config_DomainStrategy {
@@ -106,14 +46,6 @@ func (c *RouterConfig) Build() (*router.Config, error) {
 		config.Rule = append(config.Rule, rule)
 	}
 
-	for _, rawBalancer := range c.Balancers {
-		balancer, err := rawBalancer.Build()
-		if err != nil {
-			return nil, err
-		}
-		config.BalancingRule = append(config.BalancingRule, balancer)
-	}
-
 	return config, nil
 }
 
@@ -121,12 +53,6 @@ type RouterRule struct {
 	RuleTag     string `json:"ruleTag"`
 	OutboundTag string `json:"outboundTag"`
 	BalancerTag string `json:"balancerTag"`
-}
-
-type WebhookRuleConfig struct {
-	URL           string            `json:"url"`
-	Deduplication uint32            `json:"deduplication"`
-	Headers       map[string]string `json:"headers"`
 }
 
 func parseFieldRule(msg json.RawMessage) (*router.RoutingRule, error) {
@@ -149,12 +75,15 @@ func parseFieldRule(msg json.RawMessage) (*router.RoutingRule, error) {
 		LocalPort  *PortList          `json:"localPort"`
 		Process    *StringList        `json:"process"`
 		LocalOS    *StringList        `json:"localOS"`
-		Webhook    *WebhookRuleConfig `json:"webhook"`
 	}
 	rawFieldRule := new(RawFieldRule)
 	err := json.Unmarshal(msg, rawFieldRule)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(rawFieldRule.BalancerTag) > 0 {
+		return nil, errors.New("balancerTag is not supported in this slim build")
 	}
 
 	rule := new(router.RoutingRule)
@@ -164,12 +93,8 @@ func parseFieldRule(msg json.RawMessage) (*router.RoutingRule, error) {
 		rule.TargetTag = &router.RoutingRule_Tag{
 			Tag: rawFieldRule.OutboundTag,
 		}
-	case len(rawFieldRule.BalancerTag) > 0:
-		rule.TargetTag = &router.RoutingRule_BalancingTag{
-			BalancingTag: rawFieldRule.BalancerTag,
-		}
 	default:
-		return nil, errors.New("neither outboundTag nor balancerTag is specified in routing rule")
+		return nil, errors.New("outboundTag is not specified in routing rule")
 	}
 
 	if rawFieldRule.Domain != nil {
@@ -264,14 +189,6 @@ func parseFieldRule(msg json.RawMessage) (*router.RoutingRule, error) {
 
 	if rawFieldRule.LocalOS != nil && len(*rawFieldRule.LocalOS) > 0 {
 		rule.LocalOs = *rawFieldRule.LocalOS
-	}
-
-	if rawFieldRule.Webhook != nil && rawFieldRule.Webhook.URL != "" {
-		rule.Webhook = &router.WebhookConfig{
-			Url:           rawFieldRule.Webhook.URL,
-			Deduplication: rawFieldRule.Webhook.Deduplication,
-			Headers:       rawFieldRule.Webhook.Headers,
-		}
 	}
 
 	return rule, nil

@@ -10,13 +10,13 @@ import (
 	. "github.com/xtls/xray-core/common/reflect"
 	cserial "github.com/xtls/xray-core/common/serial"
 	iserial "github.com/xtls/xray-core/infra/conf/serial"
-	"github.com/xtls/xray-core/proxy/shadowsocks"
+	"github.com/xtls/xray-core/proxy/socks"
 )
 
 func TestMashalAccount(t *testing.T) {
-	account := &shadowsocks.Account{
-		Password:   "shadowsocks-password",
-		CipherType: shadowsocks.CipherType_CHACHA20_POLY1305,
+	account := &socks.Account{
+		Username: "love",
+		Password: "v2ray",
 	}
 
 	user := &protocol.User{
@@ -30,7 +30,7 @@ func TestMashalAccount(t *testing.T) {
 		t.Error("marshal account failed")
 	}
 
-	kws := []string{"CHACHA20_POLY1305", "cipherType", "shadowsocks-password"}
+	kws := []string{"username", "password", "love", "v2ray"}
 	for _, kw := range kws {
 		if !strings.Contains(j, kw) {
 			t.Error("marshal account failed")
@@ -106,7 +106,6 @@ func TestMarshalConfigJson(t *testing.T) {
 	keywords := []string{
 		"4784f9b8-a879-4fec-9718-ebddefa47750",
 		"bing.com",
-		"inboundTag",
 		"level",
 		"stats",
 		"userDownlink",
@@ -114,13 +113,8 @@ func TestMarshalConfigJson(t *testing.T) {
 		"system",
 		"inboundDownlink",
 		"outboundUplink",
-		"XHTTP_IN",
-		"\"host\": \"bing.com\"",
-		"scMaxEachPostBytes",
-		"\"from\": 100",
-		"\"to\": 1000",
-		"\"from\": 1000000",
-		"\"to\": 1000000",
+		"tfo",
+		"protocolName",
 	}
 	for _, kw := range keywords {
 		if !strings.Contains(tc, kw) {
@@ -136,7 +130,6 @@ func getConfig() string {
   "log": {
     "loglevel": "debug"
   },
-  "stats": {},
   "policy": {
     "levels": {
       "0": {
@@ -169,20 +162,13 @@ func getConfig() string {
       "tag": "api-in"
     }
   ],
-  "api": {
-    "tag": "api",
-    "services": [
-      "HandlerService",
-      "StatsService"
-    ]
-  },
   "routing": {
     "rules": [
       {
-        "inboundTag": [
-          "api-in"
+        "domain": [
+          "bing.com"
         ],
-        "outboundTag": "api"
+        "outboundTag": "direct"
       }
     ],
     "domainStrategy": "AsIs"
@@ -192,9 +178,9 @@ func getConfig() string {
       "protocol": "vless",
       "settings": {
         "vnext": [
-          {
-            "address": "1.2.3.4",
-            "port": 1234,
+      {
+            "address": "10.0.0.1",
+        "port": 1234,
             "users": [
               {
                 "id": "4784f9b8-a879-4fec-9718-ebddefa47750",
@@ -204,24 +190,12 @@ func getConfig() string {
           }
         ]
       },
-      "tag": "XHTTP_IN",
+      "tag": "direct",
       "streamSettings": {
-        "network": "xhttp",
-        "xhttpSettings": {
-          "host": "bing.com",
-          "path": "/xhttp_client_upload",
-          "mode": "auto",
-          "extra": {
-            "noSSEHeader": false,
-            "scMaxEachPostBytes": 1000000,
-            "scMaxBufferedPosts": 30,
-            "xPaddingBytes": "100-1000"
-          }
-        },
+        "network": "tcp",
         "sockopt": {
           "tcpFastOpen": true,
           "acceptProxyProtocol": false,
-          "tcpcongestion": "bbr",
           "tcpMptcp": true
         }
       },
@@ -229,8 +203,7 @@ func getConfig() string {
         "enabled": true,
         "destOverride": [
           "http",
-          "tls",
-          "quic"
+          "tls"
         ],
         "metadataOnly": false,
         "routeOnly": true
